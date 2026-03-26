@@ -7,11 +7,18 @@ import json
 import subprocess
 import argparse
 import re
+import random
 import qrcode
 from io import StringIO
 from typing import Tuple, Optional, Dict, List, Any
 from db.database import db
 from paths import *
+
+def get_random_port(port_min: int = 10000, port_max: int = 60000, block_size: int = 100) -> str:
+    num_blocks = (port_max - port_min) // block_size
+    block_index = random.randint(0, num_blocks - 1)
+    block_start = port_min + block_index * block_size
+    return str(random.randint(block_start, block_start + block_size - 1))
 
 def load_env_file(env_file: str) -> Dict[str, str]:
     env_vars = {}
@@ -159,13 +166,13 @@ def show_uri(args: argparse.Namespace) -> None:
 
     if args.all or args.ip_version == 4:
         if ip4 and ip4 != "None":
-            uri = generate_uri(args.username, auth_password, ip4, local_port, 
+            uri = generate_uri(args.username, auth_password, ip4, get_random_port(),
                                  local_obfs_password, local_sha256, local_sni, 4, local_insecure, "IPv4")
             display_uri_and_qr(uri, "IPv4", args, terminal_width)
-            
+
     if args.all or args.ip_version == 6:
         if ip6 and ip6 != "None":
-            uri = generate_uri(args.username, auth_password, ip6, local_port, 
+            uri = generate_uri(args.username, auth_password, ip6, get_random_port(),
                                  local_obfs_password, local_sha256, local_sni, 6, local_insecure, "IPv6")
             display_uri_and_qr(uri, "IPv6", args, terminal_width)
 
@@ -174,11 +181,12 @@ def show_uri(args: argparse.Namespace) -> None:
         node_ip = node.get("ip")
         if not node_name or not node_ip:
             continue
-            
+
         ip_v = 4 if '.' in node_ip else 6
-        
+
         if args.all or args.ip_version == ip_v:
-            node_port = node.get("port", local_port)
+            raw_node_port = node.get("port")
+            node_port = str(raw_node_port) if raw_node_port is not None else get_random_port()
             node_sni = node.get("sni", local_sni)
             node_obfs = node.get("obfs", local_obfs_password)
             node_pin = node.get("pinSHA256", local_sha256)

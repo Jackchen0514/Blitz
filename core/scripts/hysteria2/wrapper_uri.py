@@ -5,10 +5,17 @@ import os
 import sys
 import json
 import argparse
+import random
 from functools import lru_cache
 from typing import Dict, List, Any
 from db.database import db
 from paths import *
+
+def get_random_port(port_min: int = 10000, port_max: int = 60000, block_size: int = 100) -> str:
+    num_blocks = (port_max - port_min) // block_size
+    block_index = random.randint(0, num_blocks - 1)
+    block_start = port_min + block_index * block_size
+    return str(random.randint(block_start, block_start + block_size - 1))
 
 @lru_cache(maxsize=None)
 def load_json_file(file_path: str) -> Any:
@@ -87,9 +94,9 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
         user_output = {"username": username, "ipv4": None, "ipv6": None, "nodes": [], "normal_sub": None}
 
         if ip4 and ip4 != "None":
-            user_output["ipv4"] = generate_uri(username, auth_password, ip4, default_port, base_uri_params, 4, "IPv4")
+            user_output["ipv4"] = generate_uri(username, auth_password, ip4, get_random_port(), base_uri_params, 4, "IPv4")
         if ip6 and ip6 != "None":
-            user_output["ipv6"] = generate_uri(username, auth_password, ip6, default_port, base_uri_params, 6, "IPv6")
+            user_output["ipv6"] = generate_uri(username, auth_password, ip6, get_random_port(), base_uri_params, 6, "IPv6")
 
         for node in nodes:
             node_name = node.get("name")
@@ -100,7 +107,8 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
             ip_v = 6 if ':' in node_ip else 4
             tag = node_name
 
-            node_port = str(node.get("port", default_port))
+            raw_node_port = node.get("port")
+            node_port = str(raw_node_port) if raw_node_port is not None else get_random_port()
             node_sni = node.get("sni", default_sni)
             node_obfs = node.get("obfs", default_obfs)
             node_pin = node.get("pinSHA256", default_pin)
