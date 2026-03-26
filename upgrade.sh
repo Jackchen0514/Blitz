@@ -29,7 +29,7 @@ check_avx_support() {
         error "CPU does not support the required AVX instruction set for MongoDB."
         info "Your system is not compatible with this version."
         info "Please use the 'nodb' upgrade script instead:"
-        echo -e "${YELLOW}bash <(curl -sL https://raw.githubusercontent.com/ReturnFI/Blitz/nodb/upgrade.sh)${RESET}"
+        echo -e "${YELLOW}bash <(curl -sL https://raw.githubusercontent.com/Jackchen0514/Blitz/nodb/upgrade.sh)${RESET}"
         error "Upgrade aborted."
         exit 1
     fi
@@ -166,7 +166,7 @@ download_and_extract_latest_release() {
     info "Detected architecture: $arch"
 
     local zip_name="Blitz-${arch}.zip"
-    local download_url="https://github.com/ReturnFI/Blitz/releases/latest/download/${zip_name}"
+    local download_url="https://github.com/Jackchen0514/Blitz/releases/latest/download/${zip_name}"
     local temp_zip="/tmp/${zip_name}"
 
     info "Downloading latest release from ${download_url}..."
@@ -179,14 +179,14 @@ download_and_extract_latest_release() {
     info "Removing old installation directory..."
     rm -rf "$HYSTERIA_INSTALL_DIR"
     mkdir -p "$HYSTERIA_INSTALL_DIR"
-    
+
     info "Extracting to ${HYSTERIA_INSTALL_DIR}..."
     if ! unzip -q "$temp_zip" -d "$HYSTERIA_INSTALL_DIR"; then
         error "Failed to extract the archive."
         exit 1
     fi
     success "Extracted successfully."
-    
+
     rm "$temp_zip"
     info "Cleaned up temporary file."
 }
