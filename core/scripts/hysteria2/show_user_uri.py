@@ -18,7 +18,7 @@ def get_random_port(port_min: int = 10000, port_max: int = 60000, block_size: in
     num_blocks = (port_max - port_min) // block_size
     block_index = random.randint(0, num_blocks - 1)
     block_start = port_min + block_index * block_size
-    return str(random.randint(block_start, block_start + block_size - 1))
+    return f"{block_start}-{block_start + block_size}"
 
 def load_env_file(env_file: str) -> Dict[str, str]:
     env_vars = {}
