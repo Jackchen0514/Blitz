@@ -11,11 +11,11 @@ from typing import Dict, List, Any
 from db.database import db
 from paths import *
 
-def get_random_port(port_min: int = 10000, port_max: int = 60000, block_size: int = 100) -> str:
+def get_random_port(port_min: int = 10000, port_max: int = 60000, block_size: int = 100):
     num_blocks = (port_max - port_min) // block_size
     block_index = random.randint(0, num_blocks - 1)
     block_start = port_min + block_index * block_size
-    return f"{block_start}-{block_start + block_size}"
+    return str(block_start), f"{block_start}-{block_start + block_size}"
 
 @lru_cache(maxsize=None)
 def load_json_file(file_path: str) -> Any:
@@ -94,9 +94,11 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
         user_output = {"username": username, "ipv4": None, "ipv6": None, "nodes": [], "normal_sub": None}
 
         if ip4 and ip4 != "None":
-            user_output["ipv4"] = generate_uri(username, auth_password, ip4, get_random_port(), base_uri_params, 4, "IPv4")
+            port4, mport4 = get_random_port()
+            user_output["ipv4"] = generate_uri(username, auth_password, ip4, port4, {"mport": mport4, **base_uri_params}, 4, "IPv4")
         if ip6 and ip6 != "None":
-            user_output["ipv6"] = generate_uri(username, auth_password, ip6, get_random_port(), base_uri_params, 6, "IPv6")
+            port6, mport6 = get_random_port()
+            user_output["ipv6"] = generate_uri(username, auth_password, ip6, port6, {"mport": mport6, **base_uri_params}, 6, "IPv6")
 
         for node in nodes:
             node_name = node.get("name")
@@ -108,19 +110,23 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
             tag = node_name
 
             raw_node_port = node.get("port")
-            node_port = str(raw_node_port) if raw_node_port is not None else get_random_port()
+            if raw_node_port is not None:
+                node_port, node_mport = str(raw_node_port), None
+            else:
+                node_port, node_mport = get_random_port()
             node_sni = node.get("sni", default_sni)
             node_obfs = node.get("obfs", default_obfs)
             node_pin = node.get("pinSHA256", default_pin)
             node_insecure = node.get("insecure", default_insecure)
             
             node_params = {"insecure": "1" if node_insecure else "0"}
+            if node_mport: node_params["mport"] = node_mport
             if node_sni: node_params["sni"] = node_sni
             if node_obfs:
                 node_params["obfs"] = "salamander"
                 node_params["obfs-password"] = node_obfs
             if node_pin: node_params["pinSHA256"] = node_pin
-            
+
             uri = generate_uri(username, auth_password, node_ip, node_port, node_params, ip_v, tag)
             user_output["nodes"].append({"name": node_name, "uri": uri})
         

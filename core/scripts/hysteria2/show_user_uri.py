@@ -14,11 +14,11 @@ from typing import Tuple, Optional, Dict, List, Any
 from db.database import db
 from paths import *
 
-def get_random_port(port_min: int = 10000, port_max: int = 60000, block_size: int = 100) -> str:
+def get_random_port(port_min: int = 10000, port_max: int = 60000, block_size: int = 100) -> Tuple[str, str]:
     num_blocks = (port_max - port_min) // block_size
     block_index = random.randint(0, num_blocks - 1)
     block_start = port_min + block_index * block_size
-    return f"{block_start}-{block_start + block_size}"
+    return str(block_start), f"{block_start}-{block_start + block_size}"
 
 def load_env_file(env_file: str) -> Dict[str, str]:
     env_vars = {}
@@ -75,22 +75,24 @@ def is_service_active(service_name: str) -> bool:
     except Exception:
         return False
 
-def generate_uri(username: str, auth_password: str, ip: str, port: str, 
-                 obfs_password: str, sha256: str, sni: str, ip_version: int, 
-                 insecure: bool, fragment_tag: str) -> str:
+def generate_uri(username: str, auth_password: str, ip: str, port: str,
+                 obfs_password: str, sha256: str, sni: str, ip_version: int,
+                 insecure: bool, fragment_tag: str, mport: Optional[str] = None) -> str:
     ip_part = f"[{ip}]" if ip_version == 6 and ':' in ip else ip
     uri_base = f"hy2://{username}:{auth_password}@{ip_part}:{port}"
-    
+
     params = []
+    if mport:
+        params.append(f"mport={mport}")
     if obfs_password:
         params.append(f"obfs=salamander&obfs-password={obfs_password}")
     if sha256:
         params.append(f"pinSHA256={sha256}")
     if sni:
         params.append(f"sni={sni}")
-    
+
     params.append(f"insecure={'1' if insecure else '0'}")
-    
+
     query_string = "&".join(params)
     return f"{uri_base}?{query_string}#{fragment_tag}"
 
@@ -166,14 +168,16 @@ def show_uri(args: argparse.Namespace) -> None:
 
     if args.all or args.ip_version == 4:
         if ip4 and ip4 != "None":
-            uri = generate_uri(args.username, auth_password, ip4, get_random_port(),
-                                 local_obfs_password, local_sha256, local_sni, 4, local_insecure, "IPv4")
+            port4, mport4 = get_random_port()
+            uri = generate_uri(args.username, auth_password, ip4, port4,
+                                 local_obfs_password, local_sha256, local_sni, 4, local_insecure, "IPv4", mport4)
             display_uri_and_qr(uri, "IPv4", args, terminal_width)
 
     if args.all or args.ip_version == 6:
         if ip6 and ip6 != "None":
-            uri = generate_uri(args.username, auth_password, ip6, get_random_port(),
-                                 local_obfs_password, local_sha256, local_sni, 6, local_insecure, "IPv6")
+            port6, mport6 = get_random_port()
+            uri = generate_uri(args.username, auth_password, ip6, port6,
+                                 local_obfs_password, local_sha256, local_sni, 6, local_insecure, "IPv6", mport6)
             display_uri_and_qr(uri, "IPv6", args, terminal_width)
 
     for node in nodes:
@@ -186,7 +190,10 @@ def show_uri(args: argparse.Namespace) -> None:
 
         if args.all or args.ip_version == ip_v:
             raw_node_port = node.get("port")
-            node_port = str(raw_node_port) if raw_node_port is not None else get_random_port()
+            if raw_node_port is not None:
+                node_port, node_mport = str(raw_node_port), None
+            else:
+                node_port, node_mport = get_random_port()
             node_sni = node.get("sni", local_sni)
             node_obfs = node.get("obfs", local_obfs_password)
             node_pin = node.get("pinSHA256", local_sha256)
@@ -196,13 +203,14 @@ def show_uri(args: argparse.Namespace) -> None:
                 username=args.username,
                 auth_password=auth_password,
                 ip=node_ip,
-                port=str(node_port),
+                port=node_port,
                 obfs_password=node_obfs,
                 sha256=node_pin,
                 sni=node_sni,
                 ip_version=ip_v,
                 insecure=node_insecure,
-                fragment_tag=node_name
+                fragment_tag=node_name,
+                mport=node_mport
             )
             display_uri_and_qr(uri, f"Node: {node_name} (IPv{ip_v})", args, terminal_width)
 
