@@ -30,6 +30,11 @@ A powerful and user-friendly management panel for Hysteria2 proxy server. Featur
 ```bash
 bash <(curl https://raw.githubusercontent.com/Jackchen0514/Blitz/main/install.sh)
 ```
+
+```
+root@ethical-beep-1:~/Blitz# cp core/scripts/hysteria2/show_user_uri.py /etc/hysteria/core/scripts/hysteria2/show_user_uri.py
+root@ethical-beep-1:~/Blitz# cp core/scripts/hysteria2/wrapper_uri.py /etc/hysteria/core/scripts/hysteria2/wrapper_uri.py
+```
 After installation, use `hys2` to launch the management panel.
 
 There is no need to execute the installation command again.
