@@ -72,7 +72,7 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
     default_pin = tls_config.get("pinSHA256")
     default_insecure = tls_config.get("insecure", True)
     
-    base_uri_params = {"insecure": "1" if default_insecure else "0"}
+    base_uri_params = {"insecure": "1" if default_insecure else "0", "up": "30mbps", "down": "30mbps"}
     if default_sni: base_uri_params["sni"] = default_sni
     if default_obfs:
         base_uri_params["obfs"] = "salamander"
@@ -119,7 +119,7 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
             node_pin = node.get("pinSHA256", default_pin)
             node_insecure = node.get("insecure", default_insecure)
             
-            node_params = {"insecure": "1" if node_insecure else "0"}
+            node_params = {"insecure": "1" if node_insecure else "0", "up": "30mbps", "down": "30mbps"}
             if node_mport: node_params["mport"] = node_mport
             if node_sni: node_params["sni"] = node_sni
             if node_obfs:

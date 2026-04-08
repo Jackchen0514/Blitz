@@ -92,6 +92,8 @@ def generate_uri(username: str, auth_password: str, ip: str, port: str,
         params.append(f"sni={sni}")
 
     params.append(f"insecure={'1' if insecure else '0'}")
+    params.append("up=30mbps")
+    params.append("down=30mbps")
 
     query_string = "&".join(params)
     return f"{uri_base}?{query_string}#{fragment_tag}"
