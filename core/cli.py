@@ -195,6 +195,21 @@ def reset_user(username: str):
         click.echo(f'{e}', err=True)
 
 
+@cli.command('reset-traffic')
+@click.option('--username', '-u', required=False, help='Reset traffic for a specific user', type=str)
+@click.option('--all', 'reset_all', is_flag=True, help='Reset traffic for all users due today')
+def reset_traffic(username: str, reset_all: bool):
+    try:
+        if username:
+            cli_api.reset_traffic(username)
+        elif reset_all:
+            cli_api.reset_traffic()
+        else:
+            click.echo('Specify --username or --all', err=True)
+    except Exception as e:
+        click.echo(f'{e}', err=True)
+
+
 @cli.command('renew-user')
 @click.option('--username', '-u', required=True, help='Username to renew', type=str)
 @click.option('--extend-days', '-d', required=True, help='Days to extend from current expiry date', type=int)

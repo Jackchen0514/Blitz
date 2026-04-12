@@ -77,18 +77,32 @@ def backup_hysteria():
     if not lock_fd:
         logger.warning("Skipping backup due to lock")
         return
-        
+
     try:
         run_command(f"python3 {CLI_PATH} backup-hysteria", log_success=True)
     finally:
         release_lock(lock_fd)
 
+def reset_monthly_traffic():
+    lock_fd = acquire_lock()
+    if not lock_fd:
+        logger.warning("Skipping monthly traffic reset due to lock")
+        return
+
+    try:
+        success = run_command(f"python3 {CLI_PATH} reset-traffic --all", log_success=True)
+        if not success:
+            logger.error("Monthly traffic reset failed.")
+    finally:
+        release_lock(lock_fd)
+
 def main():
     logger.info("Starting Hysteria Scheduler")
-    
+
     schedule.every(1).minutes.do(check_traffic_status)
     schedule.every(6).hours.do(backup_hysteria)
-    
+    schedule.every().day.at("00:05").do(reset_monthly_traffic)
+
     check_traffic_status()
     backup_hysteria()
     
