@@ -195,6 +195,16 @@ def reset_user(username: str):
         click.echo(f'{e}', err=True)
 
 
+@cli.command('renew-user')
+@click.option('--username', '-u', required=True, help='Username to renew', type=str)
+@click.option('--extend-days', '-d', required=True, help='Days to extend from current expiry date', type=int)
+def renew_user(username: str, extend_days: int):
+    try:
+        cli_api.renew_user(username, extend_days)
+    except Exception as e:
+        click.echo(f'{e}', err=True)
+
+
 @cli.command('remove-user')
 @click.argument('usernames', nargs=-1, required=True)
 def remove_user(usernames: tuple[str]):

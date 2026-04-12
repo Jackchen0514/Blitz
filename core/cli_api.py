@@ -34,6 +34,7 @@ class Command(Enum):
     BULK_USER = os.path.join(SCRIPT_DIR, 'hysteria2', 'bulk_users.py')
     EDIT_USER = os.path.join(SCRIPT_DIR, 'hysteria2', 'edit_user.py')
     RESET_USER = os.path.join(SCRIPT_DIR, 'hysteria2', 'reset_user.py')
+    RENEW_USER = os.path.join(SCRIPT_DIR, 'hysteria2', 'renew_user.py')
     REMOVE_USER = os.path.join(SCRIPT_DIR, 'hysteria2', 'remove_user.py')
     SHOW_USER_URI = os.path.join(SCRIPT_DIR, 'hysteria2', 'show_user_uri.py')
     WRAPPER_URI = os.path.join(SCRIPT_DIR, 'hysteria2', 'wrapper_uri.py')
@@ -398,6 +399,14 @@ def reset_user(username: str):
     Resets a user's configuration.
     '''
     run_cmd(['python3', Command.RESET_USER.value, username])
+
+
+def renew_user(username: str, extend_days: int):
+    '''
+    Renews a user's subscription by extending expiry date from current expiry.
+    Does not reset traffic.
+    '''
+    run_cmd(['python3', Command.RENEW_USER.value, username, '--extend-days', str(extend_days)])
 
 
 def remove_users(usernames: list[str]):

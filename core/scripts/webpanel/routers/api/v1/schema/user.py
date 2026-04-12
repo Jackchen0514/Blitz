@@ -72,6 +72,10 @@ class EditUserInputBody(BaseModel):
             raise ValueError('Username can only contain letters, numbers, and underscores.')
         return v
 
+class RenewUserInputBody(BaseModel):
+    extend_days: int = Field(..., description="Number of days to extend from current expiry date.", gt=0)
+
+
 class NodeUri(BaseModel):
     name: str
     uri: str

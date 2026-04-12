@@ -2,13 +2,14 @@ import json
 from typing import List
 from fastapi import APIRouter, HTTPException
 from .schema.user import (
-    UserListResponse, 
-    UserInfoResponse, 
-    AddUserInputBody, 
-    EditUserInputBody, 
-    UserUriResponse, 
-    AddBulkUsersInputBody, 
-    UsernamesRequest
+    UserListResponse,
+    UserInfoResponse,
+    AddUserInputBody,
+    EditUserInputBody,
+    UserUriResponse,
+    AddBulkUsersInputBody,
+    UsernamesRequest,
+    RenewUserInputBody,
 )
 from .schema.response import DetailResponse
 import cli_api
@@ -174,6 +175,19 @@ async def edit_user_api(username: str, body: EditUserInputBody):
         cli_api.edit_user(username, body.new_username, body.new_password, body.new_traffic_limit, body.new_expiration_days,
                           body.renew_password, body.renew_creation_date, body.blocked, body.unlimited_ip, body.note)
         return DetailResponse(detail=f'User {username} has been edited.')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Error: {str(e)}')
+
+
+@router.post('/{username}/renew', response_model=DetailResponse)
+async def renew_user_api(username: str, body: RenewUserInputBody):
+    """
+    Renew a user's subscription by extending expiry date from current expiry.
+    Does not reset traffic.
+    """
+    try:
+        cli_api.renew_user(username, body.extend_days)
+        return DetailResponse(detail=f'User {username} renewed by {body.extend_days} days.')
     except Exception as e:
         raise HTTPException(status_code=400, detail=f'Error: {str(e)}')
 
