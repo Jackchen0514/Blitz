@@ -12,7 +12,7 @@ from db.database import db
 from paths import *
 
 def get_random_port(port_min: int = 10000, port_max: int = 60000, block_size: int = 100):
-    num_blocks = (port_max - port_min) // block_size
+    num_blocks = max(1, (port_max - port_min) // block_size)
     block_index = random.randint(0, num_blocks - 1)
     block_start = port_min + block_index * block_size
     return str(block_start), f"{block_start}-{block_start + block_size}"
@@ -67,6 +67,13 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
     hy2_env = load_env_file(CONFIG_ENV)
     ns_env = load_env_file(NORMALSUB_ENV)
 
+    try:
+        port_min = int(hy2_env.get('PORT_HOP_MIN', 10000))
+        port_max = int(hy2_env.get('PORT_HOP_MAX', 60000))
+        block_size = int(hy2_env.get('PORT_HOP_BLOCK', 100))
+    except ValueError:
+        port_min, port_max, block_size = 10000, 60000, 100
+
     default_sni = hy2_env.get('SNI', '')
     default_obfs = config.get("obfs", {}).get("salamander", {}).get("password")
     default_pin = tls_config.get("pinSHA256")
@@ -94,10 +101,10 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
         user_output = {"username": username, "ipv4": None, "ipv6": None, "nodes": [], "normal_sub": None}
 
         if ip4 and ip4 != "None":
-            port4, mport4 = get_random_port()
+            port4, mport4 = get_random_port(port_min, port_max, block_size)
             user_output["ipv4"] = generate_uri(username, auth_password, ip4, port4, {"mport": mport4, **base_uri_params}, 4, "IPv4")
         if ip6 and ip6 != "None":
-            port6, mport6 = get_random_port()
+            port6, mport6 = get_random_port(port_min, port_max, block_size)
             user_output["ipv6"] = generate_uri(username, auth_password, ip6, port6, {"mport": mport6, **base_uri_params}, 6, "IPv6")
 
         for node in nodes:
@@ -113,7 +120,7 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
             if raw_node_port is not None:
                 node_port, node_mport = str(raw_node_port), None
             else:
-                node_port, node_mport = get_random_port()
+                node_port, node_mport = get_random_port(port_min, port_max, block_size)
             node_sni = node.get("sni", default_sni)
             node_obfs = node.get("obfs", default_obfs)
             node_pin = node.get("pinSHA256", default_pin)
