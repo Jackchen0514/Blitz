@@ -111,7 +111,6 @@ def reset_traffic_user(username: str) -> int:
         db.update_user(username_lower, {
             'upload_bytes': 0,
             'download_bytes': 0,
-            'blocked': False,
             'last_traffic_reset': today.strftime("%Y-%m-%d"),
         })
         print(f"Traffic reset for user '{username}' successfully.")
