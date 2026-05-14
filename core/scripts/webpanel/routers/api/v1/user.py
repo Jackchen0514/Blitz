@@ -248,6 +248,25 @@ async def reset_user_api(username: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f'Error: {str(e)}')
 
+@router.post('/{username}/reset-traffic', response_model=DetailResponse)
+async def reset_traffic_api(username: str):
+    """
+    Reset a user's traffic usage (upload/download bytes) only.
+    Does not affect account_creation_date, expiration_days, or status.
+    """
+    try:
+        user = cli_api.get_user(username)
+        if not user:
+            raise HTTPException(status_code=404, detail=f'User {username} not found.')
+
+        cli_api.reset_traffic(username)
+        return DetailResponse(detail=f'Traffic for user {username} has been reset.')
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Error: {str(e)}')
+
+
 @router.get('/{username}/uri', response_model=UserUriResponse)
 async def show_user_uri_api(username: str):
     """
