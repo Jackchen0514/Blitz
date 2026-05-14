@@ -35,7 +35,6 @@ class Command(Enum):
     EDIT_USER = os.path.join(SCRIPT_DIR, 'hysteria2', 'edit_user.py')
     RESET_USER = os.path.join(SCRIPT_DIR, 'hysteria2', 'reset_user.py')
     RENEW_USER = os.path.join(SCRIPT_DIR, 'hysteria2', 'renew_user.py')
-    RESET_TRAFFIC = os.path.join(SCRIPT_DIR, 'hysteria2', 'reset_traffic.py')
     REMOVE_USER = os.path.join(SCRIPT_DIR, 'hysteria2', 'remove_user.py')
     SHOW_USER_URI = os.path.join(SCRIPT_DIR, 'hysteria2', 'show_user_uri.py')
     WRAPPER_URI = os.path.join(SCRIPT_DIR, 'hysteria2', 'wrapper_uri.py')
@@ -409,16 +408,6 @@ def renew_user(username: str, extend_days: int):
     '''
     run_cmd(['python3', Command.RENEW_USER.value, username, '--extend-days', str(extend_days)])
 
-
-def reset_traffic(username: str | None = None):
-    '''
-    Resets traffic (upload/download bytes) for a specific user or all users
-    whose monthly reset date falls on today.
-    '''
-    if username:
-        run_cmd(['python3', Command.RESET_TRAFFIC.value, '--username', username])
-    else:
-        run_cmd(['python3', Command.RESET_TRAFFIC.value, '--all'])
 
 
 def remove_users(usernames: list[str]):
