@@ -25,6 +25,16 @@ jobs:
       id: get_version
       run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
 
+    - name: Detect branch variant
+      id: variant
+      run: |
+        branch="${GITHUB_REF#refs/heads/}"
+        if [[ "$branch" == "nodb" ]]; then
+          echo "prefix=Blitz-nodb" >> $GITHUB_OUTPUT
+        else
+          echo "prefix=Blitz" >> $GITHUB_OUTPUT
+        fi
+
     - name: Initialize Go module
       working-directory: ./core/scripts/auth
       run: |
@@ -35,7 +45,7 @@ jobs:
       id: package_amd64
       run: |
         (cd core/scripts/auth && GOOS=linux GOARCH=amd64 go build -o user_auth .)
-        zip_name="Blitz-amd64.zip"
+        zip_name="${{ steps.variant.outputs.prefix }}-amd64.zip"
         zip -r "$zip_name" . \
           -x ".git/*" \
              ".github/*" \
@@ -55,7 +65,7 @@ jobs:
       id: package_arm64
       run: |
         (cd core/scripts/auth && GOOS=linux GOARCH=arm64 go build -o user_auth .)
-        zip_name="Blitz-arm64.zip"
+        zip_name="${{ steps.variant.outputs.prefix }}-arm64.zip"
         zip -r "$zip_name" . \
           -x ".git/*" \
              ".github/*" \

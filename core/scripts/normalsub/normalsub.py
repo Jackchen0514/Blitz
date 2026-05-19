@@ -202,8 +202,7 @@ class HysteriaCLI:
     def get_username_by_password(self, password_token: str) -> Optional[str]:
         if not db:
             return None
-        user_doc = db.collection.find_one({"password": password_token}, {"_id": 1})
-        return user_doc['_id'] if user_doc else None
+        return db.find_user_by_password(password_token)
 
     def get_user_info(self, username: str) -> Optional[UserInfo]:
         if not db:

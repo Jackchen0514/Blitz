@@ -65,7 +65,7 @@ def edit_user(username, new_username=None, new_password=None, traffic_gb=None, e
             updated_user_data.pop('_id')
             updated_user_data['_id'] = new_username_lower
 
-            db.collection.insert_one(updated_user_data)
+            db.insert_user(updated_user_data)
             db.delete_user(username_lower)
             print(f"User '{username}' successfully renamed to '{new_username}'.")
 

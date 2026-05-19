@@ -10,7 +10,7 @@ from db.database import db
 
 def add_bulk_users(traffic_gb, expiration_days, count, prefix, start_number, unlimited_user):
     if db is None:
-        print("Error: Database connection failed. Please ensure MongoDB is running.")
+        print("Error: Database connection failed.")
         return 1
         
     try:
@@ -28,8 +28,7 @@ def add_bulk_users(traffic_gb, expiration_days, count, prefix, start_number, unl
         potential_usernames.append(username.lower())
 
     try:
-        existing_docs = db.collection.find({"_id": {"$in": potential_usernames}}, {"_id": 1})
-        existing_users_set = {doc['_id'] for doc in existing_docs}
+        existing_users_set = db.find_users_by_ids(potential_usernames)
     except Exception as e:
         print(f"Error querying database for existing users: {e}")
         return 1
@@ -61,7 +60,7 @@ def add_bulk_users(traffic_gb, expiration_days, count, prefix, start_number, unl
         users_to_insert.append(user_doc)
 
     try:
-        db.collection.insert_many(users_to_insert, ordered=False)
+        db.insert_users(users_to_insert)
         print(f"\nSuccessfully added {len(users_to_insert)} new users.")
         return 0
     except Exception as e:

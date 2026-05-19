@@ -1,36 +1,16 @@
-# 🔖 ** release(2.5.1): Telegram UX improvements, web panel access & outbound enhancements 🚀 **
+# v1.0.11-nodb — No-MongoDB Edition
 
-*Released: 2026-01-02*
+*Released: 2026-05-19*
 
-## ✨ New Features
+## Overview
 
-* 🤖 **Telegram Bot**: Added settings menu 
-* 🌐 **Web Panel URL**:
+This is the **nodb** variant of Blitz, designed for servers whose CPU does **not** support the AVX instruction set required by MongoDB 8.x.
 
-  * Added service status check before retrieving web panel URL
-  * New handlers to retrieve and display web panel URL
-* 🖥️ **CLI**: Added option to display *only* the web panel URL
-* 🔀 **Outbounds**: Introduced new `select` outbound type(SingBox)
-* 👥 **Users**: Added option to display up to **1000 users** in selection dropdown
-* ⏳ **Expiration**: Added validation for expiration days and improved UI
+All user data is stored in a local JSON file (`/etc/hysteria/users_data.json`) instead of MongoDB.
 
-### 🐛 Fixes
+## Changes from main branch
 
-* 🛡️ Prevent enabling **Masquerade** when **OBFS** is active
-* ⚙️ Conditionally generate **sing-box OBFS** configuration(SingBox)
-
-### ♻️ Refactors & Improvements
-
-* 🧭 Introduced settings submenu structure in Telegram bot
-* 🔗 Removed username from URI fragments
-* 💾 Streamlined upgrade backup process and removed geo data download
-
-### 🔧 Dependencies
-
-* ⬆️ **FastAPI** bumped to `0.128.0`
-* ⬆️ **psutil** bumped to `7.2.1`
-* ⬆️ **pillow** bumped to `12.1.0`
-
-### ❤️ Credits
-
-Special thanks to **@MiliAxe** and **@SeyedHashtag** for their valuable contributions 🙌
+- Replaced MongoDB storage with a thread-safe JSON file backend
+- Removed `pymongo` dependency
+- No MongoDB installation or AVX CPU requirement
+- All APIs and CLI commands work identically to the main branch

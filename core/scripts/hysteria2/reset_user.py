@@ -15,7 +15,7 @@ def reset_user(username):
         int: 0 on success, 1 on failure.
     """
     if db is None:
-        print("Error: Database connection failed. Please ensure MongoDB is running.")
+        print("Error: Database connection failed.")
         return 1
 
     try:
@@ -24,27 +24,10 @@ def reset_user(username):
             print(f"Error: User '{username}' not found in the database.")
             return 1
 
-        result = db.collection.update_one(
-            {'_id': username},
-            {
-                '$set': {
-                    'status': 'On-hold',
-                    'blocked': False
-                },
-                '$unset': {
-                    'account_creation_date': "",
-                    'download_bytes': "",
-                    'upload_bytes': ""
-                }
-            }
-        )
-
-        if result.modified_count > 0:
-            print(f"User '{username}' has been reset successfully.")
-            return 0
-        else:
-            print(f"User '{username}' data was already in a reset state. No changes made.")
-            return 0
+        db.update_user(username, {'status': 'On-hold', 'blocked': False})
+        db.unset_user_fields(username, ['account_creation_date', 'download_bytes', 'upload_bytes'])
+        print(f"User '{username}' has been reset successfully.")
+        return 0
 
     except Exception as e:
         print(f"An error occurred while resetting the user: {e}")

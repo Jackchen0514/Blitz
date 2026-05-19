@@ -73,66 +73,11 @@ check_os_version() {
         exit 1
     fi
     
-    log_info "Checking CPU for AVX support (required for MongoDB)..."
-    if grep -q -m1 -o -E 'avx|avx2|avx512' /proc/cpuinfo; then
-        log_success "CPU supports AVX instruction set."
-    else
-        log_error "CPU does not support the required AVX instruction set for MongoDB."
-        log_info "For systems without AVX support, you can use the 'nodb' version of the panel."
-        log_info "To install it, please run the following command:"
-        echo -e "${YELLOW}bash <(curl -sL https://raw.githubusercontent.com/Jackchen0514/Blitz/nodb/install.sh)${NC}"
-        log_error "Installation aborted."
-        exit 1
-    fi
-}
-
-
-install_mongodb() {
-    log_info "Installing MongoDB..."
-    
-    if command -v mongod &> /dev/null; then
-        log_success "MongoDB is already installed"
-        return 0
-    fi
-    
-    curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
-    
-    local codename
-    codename=$(lsb_release -cs)
-    local repo_line=""
-
-    case "$codename" in
-        "noble" | "jammy")
-            repo_line="deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu $codename/mongodb-org/8.0 multiverse"
-            ;;
-        "bookworm" | "trixie")
-            repo_line="deb [ signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] http://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main"
-            ;;
-        *)
-            log_error "Unsupported OS codename for MongoDB installation: $codename"
-            exit 1
-            ;;
-    esac
-
-    echo "$repo_line" | tee /etc/apt/sources.list.d/mongodb-org-8.0.list > /dev/null
-    
-    apt update -qq
-    apt install -y -qq mongodb-org
-    
-    systemctl enable mongod
-    systemctl start mongod
-    
-    if systemctl is-active --quiet mongod; then
-        log_success "MongoDB installed and started successfully"
-    else
-        log_error "MongoDB installation failed or service not running"
-        exit 1
-    fi
 }
 
 
 install_packages() {
-    local REQUIRED_PACKAGES=("jq" "curl" "pwgen" "python3" "python3-pip" "python3-venv" "bc" "zip" "unzip" "lsof" "gnupg" "lsb-release")
+    local REQUIRED_PACKAGES=("jq" "curl" "pwgen" "python3" "python3-pip" "python3-venv" "bc" "zip" "unzip" "lsof")
     local MISSING_PACKAGES=()
     
     log_info "Checking required packages..."
@@ -162,8 +107,6 @@ install_packages() {
     else
         log_success "All required packages are already installed."
     fi
-    
-    install_mongodb
 }
 
 download_and_extract_release() {
@@ -192,8 +135,18 @@ download_and_extract_release() {
     esac
     log_info "Detected architecture: $arch"
 
-    local zip_name="Blitz-${arch}.zip"
-    local download_url="https://github.com/Jackchen0514/Blitz/releases/latest/download/${zip_name}"
+    log_info "Finding latest nodb release..."
+    local nodb_tag
+    nodb_tag=$(curl -sL "https://api.github.com/repos/Jackchen0514/Blitz/releases" | \
+        jq -r '[.[] | select(.tag_name | test("nodb")) | select(.draft == false) | select(.prerelease == false)][0].tag_name // empty')
+    if [ -z "$nodb_tag" ]; then
+        log_error "Could not find a published nodb release on GitHub."
+        exit 1
+    fi
+    log_success "Found nodb release: $nodb_tag"
+
+    local zip_name="Blitz-nodb-${arch}.zip"
+    local download_url="https://github.com/Jackchen0514/Blitz/releases/download/${nodb_tag}/${zip_name}"
     local temp_zip="/tmp/${zip_name}"
 
     log_info "Downloading from ${download_url}..."

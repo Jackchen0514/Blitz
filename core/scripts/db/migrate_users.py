@@ -8,13 +8,13 @@ from db.database import db
 
 def migrate():
     users_json_path = Path("/etc/hysteria/users.json")
-    
+
     if not users_json_path.exists():
         print("users.json not found, no migration needed.")
         return
 
     if db is None:
-        print("Error: Database connection failed. Cannot perform migration.", file=sys.stderr)
+        print("Error: Database connection failed.", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -29,8 +29,11 @@ def migrate():
 
     for username, data in users_data.items():
         try:
+            if data.get("password") is None:
+                print(f"Warning: User '{username}' has no password, skipping.", file=sys.stderr)
+                continue
+
             user_doc = {
-                "_id": username.lower(),
                 "password": data.get("password"),
                 "max_download_bytes": data.get("max_download_bytes", 0),
                 "expiration_days": data.get("expiration_days", 0),
@@ -41,24 +44,16 @@ def migrate():
                 "upload_bytes": data.get("upload_bytes", 0),
                 "download_bytes": data.get("download_bytes", 0),
             }
-            
-            if user_doc["password"] is None:
-                print(f"Warning: User '{username}' has no password, skipping.", file=sys.stderr)
-                continue
 
-            db.collection.update_one(
-                {'_id': user_doc['_id']},
-                {'$set': user_doc},
-                upsert=True
-            )
+            db.upsert_user(username.lower(), user_doc)
             migrated_count += 1
             print(f"  - Migrated user: {username}")
-        
+
         except Exception as e:
             print(f"Error migrating user '{username}': {e}", file=sys.stderr)
 
-    print(f"Migration complete. {migrated_count} users successfully migrated to MongoDB.")
-    
+    print(f"Migration complete. {migrated_count} users successfully migrated.")
+
     try:
         migrated_file_path = users_json_path.with_name("users.json.migrated")
         users_json_path.rename(migrated_file_path)
