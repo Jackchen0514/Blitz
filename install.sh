@@ -138,7 +138,7 @@ download_and_extract_release() {
     log_info "Finding latest nodb release..."
     local nodb_tag
     nodb_tag=$(curl -sL "https://api.github.com/repos/Jackchen0514/Blitz/releases" | \
-        jq -r '[.[] | select(.tag_name | test("nodb")) | select(.draft == false) | select(.prerelease == false)][0].tag_name // empty')
+        jq -r '[.[] | select(.tag_name | test("nodb")) | select(.draft == false)][0].tag_name // empty')
     if [ -z "$nodb_tag" ]; then
         log_error "Could not find a published nodb release on GitHub."
         exit 1

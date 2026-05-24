@@ -31,8 +31,10 @@ jobs:
         branch="${GITHUB_REF#refs/heads/}"
         if [[ "$branch" == "nodb" ]]; then
           echo "prefix=Blitz-nodb" >> $GITHUB_OUTPUT
+          echo "prerelease=true" >> $GITHUB_OUTPUT
         else
           echo "prefix=Blitz" >> $GITHUB_OUTPUT
+          echo "prerelease=false" >> $GITHUB_OUTPUT
         fi
 
     - name: Initialize Go module
@@ -99,4 +101,4 @@ jobs:
           ${{ steps.package_amd64.outputs.zip_name }}
           ${{ steps.package_arm64.outputs.zip_name }}
         draft: false
-        prerelease: false
+        prerelease: ${{ steps.variant.outputs.prerelease }}
