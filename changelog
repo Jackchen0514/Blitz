@@ -1,9 +1,17 @@
-# v1.0.14
+# v1.0.15
 
 ## Fixes
 
-- **Connection Limiter**: Fix regex not matching Hysteria2 log lines
-  The event string ("client connected"/"client disconnected") appears
-  unquoted in Hysteria2 console-format logs. Previous regex required
-  quotes around the event, so no connections were ever counted and
-  the limit was never enforced.
+- **Connection Limiter**: Redesign to auth-proxy mode to truly enforce limits
+
+  Previous approach (kick after connect) failed because clients auto-reconnect
+  immediately after being kicked, creating an endless loop where both devices
+  appeared to work simultaneously.
+
+  New approach: run an auth proxy on 127.0.0.1:28263. Hysteria2 calls the proxy
+  instead of the Go auth server directly. The proxy rejects new connections with
+  {"ok": false} when MAX_CONNECTIONS is reached — the client receives an auth
+  failure and stops reconnecting.
+
+  `start` now also updates config.json auth URL and restarts hysteria-server.
+  `stop` restores config.json to point back to the Go auth server directly.
