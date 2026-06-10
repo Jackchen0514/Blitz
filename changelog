@@ -1,14 +1,6 @@
-# v1.0.12
+# v1.0.13
 
-## New Features
+## Fixes
 
-- **Connection Limiter**: Per-user concurrent connection limiting
-  - Monitors Hysteria2 server logs in real-time
-  - Kicks users who exceed `MAX_CONNECTIONS` simultaneous connections
-  - Users with `unlimited_user=true` are exempt
-  - Runs as a systemd service (`hysteria-conn-limit.service`)
-  - New API endpoints under `/api/v1/hysteria/conn-limit/`:
-    - `POST /start` — start the service
-    - `POST /stop` — stop the service
-    - `POST /config` — set `max_connections`
-    - `GET /config` — get current setting
+- **upgrade.sh**: Support Debian 13 (trixie) for MongoDB installation
+  (uses bookworm repo, which is compatible with Debian 13)
