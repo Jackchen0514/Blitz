@@ -1,6 +1,9 @@
-# v1.0.13
+# v1.0.14
 
 ## Fixes
 
-- **upgrade.sh**: Support Debian 13 (trixie) for MongoDB installation
-  (uses bookworm repo, which is compatible with Debian 13)
+- **Connection Limiter**: Fix regex not matching Hysteria2 log lines
+  The event string ("client connected"/"client disconnected") appears
+  unquoted in Hysteria2 console-format logs. Previous regex required
+  quotes around the event, so no connections were ever counted and
+  the limit was never enforced.
