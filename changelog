@@ -1,36 +1,14 @@
-# 🔖 ** release(2.5.1): Telegram UX improvements, web panel access & outbound enhancements 🚀 **
+# v1.0.12
 
-*Released: 2026-01-02*
+## New Features
 
-## ✨ New Features
-
-* 🤖 **Telegram Bot**: Added settings menu 
-* 🌐 **Web Panel URL**:
-
-  * Added service status check before retrieving web panel URL
-  * New handlers to retrieve and display web panel URL
-* 🖥️ **CLI**: Added option to display *only* the web panel URL
-* 🔀 **Outbounds**: Introduced new `select` outbound type(SingBox)
-* 👥 **Users**: Added option to display up to **1000 users** in selection dropdown
-* ⏳ **Expiration**: Added validation for expiration days and improved UI
-
-### 🐛 Fixes
-
-* 🛡️ Prevent enabling **Masquerade** when **OBFS** is active
-* ⚙️ Conditionally generate **sing-box OBFS** configuration(SingBox)
-
-### ♻️ Refactors & Improvements
-
-* 🧭 Introduced settings submenu structure in Telegram bot
-* 🔗 Removed username from URI fragments
-* 💾 Streamlined upgrade backup process and removed geo data download
-
-### 🔧 Dependencies
-
-* ⬆️ **FastAPI** bumped to `0.128.0`
-* ⬆️ **psutil** bumped to `7.2.1`
-* ⬆️ **pillow** bumped to `12.1.0`
-
-### ❤️ Credits
-
-Special thanks to **@MiliAxe** and **@SeyedHashtag** for their valuable contributions 🙌
+- **Connection Limiter**: Per-user concurrent connection limiting
+  - Monitors Hysteria2 server logs in real-time
+  - Kicks users who exceed `MAX_CONNECTIONS` simultaneous connections
+  - Users with `unlimited_user=true` are exempt
+  - Runs as a systemd service (`hysteria-conn-limit.service`)
+  - New API endpoints under `/api/v1/hysteria/conn-limit/`:
+    - `POST /start` — start the service
+    - `POST /stop` — stop the service
+    - `POST /config` — set `max_connections`
+    - `GET /config` — get current setting
