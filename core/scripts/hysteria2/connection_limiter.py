@@ -37,9 +37,11 @@ DEFAULT_MAX_CONNECTIONS = 2
 _counts: dict[str, int] = defaultdict(int)
 _lock = Lock()
 
-# Matches both "client connected" and "client disconnected" Hysteria2 log lines
+# Matches both "client connected" and "client disconnected" Hysteria2 log lines.
+# Hysteria2 logs in console format: ...TAB client connected TAB {"addr":"...","id":"username",...}
+# The event name is NOT quoted in the log line.
 _LOG_RE = re.compile(
-    r'"(?P<event>client connected|client disconnected)"'
+    r'(?P<event>client connected|client disconnected)'
     r'.*?"id":\s*"(?P<username>[^"]+)"'
 )
 
