@@ -196,6 +196,7 @@ download_and_extract_latest_release() {
 declare -a ACTIVE_SERVICES_BEFORE_UPGRADE=()
 ALL_SERVICES=(
     hysteria-caddy.service
+    hysteria-conn-limit.service
     hysteria-server.service
     hysteria-auth.service
     hysteria-scheduler.service
@@ -274,10 +275,18 @@ done
 
 # ========== Update Configuration ==========
 info "Updating Hysteria configuration for HTTP authentication..."
-auth_block='{"type": "http", "http": {"url": "http://127.0.0.1:28262/auth"}}'
+# If the connection limiter was active before upgrade, preserve its proxy port (28263).
+# Otherwise point directly at the Go auth server (28262).
+if [[ " ${ACTIVE_SERVICES_BEFORE_UPGRADE[*]} " =~ "hysteria-conn-limit.service" ]]; then
+    auth_url="http://127.0.0.1:28263/auth"
+    info "Connection limiter was active — keeping auth URL at port 28263."
+else
+    auth_url="http://127.0.0.1:28262/auth"
+fi
+auth_block="{\"type\": \"http\", \"http\": {\"url\": \"${auth_url}\"}}"
 if [[ -f "$HYSTERIA_INSTALL_DIR/config.json" ]]; then
     jq --argjson auth_block "$auth_block" '.auth = $auth_block' "$HYSTERIA_INSTALL_DIR/config.json" > "$HYSTERIA_INSTALL_DIR/config.json.tmp" && mv "$HYSTERIA_INSTALL_DIR/config.json.tmp" "$HYSTERIA_INSTALL_DIR/config.json"
-    success "config.json updated to use auth server."
+    success "config.json updated (auth URL: ${auth_url})."
 else
     warn "config.json not found after restore. Skipping auth update."
 fi

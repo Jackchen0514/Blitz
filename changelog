@@ -1,3 +1,25 @@
+# v1.0.17
+
+## Fixes
+
+- **Connection Limiter**: Fix auth proxy bypass after upgrade
+
+  After running `upgrade.sh`, the connection limiter stopped enforcing limits
+  even though the service was running. Root cause: `upgrade.sh` always reset
+  `config.json` auth URL back to port 28262 (Go auth server), so Hysteria2
+  bypassed the proxy entirely — no auth requests reached port 28263.
+
+  Fixes:
+  - `connection_limiter.py` now verifies `config.json` auth URL on every startup.
+    If it finds port 28262 instead of 28263, it self-heals: updates the URL and
+    restarts `hysteria-server` so it picks up the correction. When this happens
+    all prior connections are terminated (server restart), so counts start fresh.
+  - `upgrade.sh` now includes `hysteria-conn-limit.service` in the service restart
+    list, ensuring the service picks up new code after each upgrade.
+  - `upgrade.sh` now preserves the auth URL at port 28263 when the connection
+    limiter was active before the upgrade, preventing the regression in the first
+    place.
+
 # v1.0.16
 
 ## Fixes

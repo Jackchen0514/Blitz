@@ -10,6 +10,9 @@ so simultaneous reconnects cannot both slip through. The journal monitor only
 handles 'client disconnected' events (decrement). On startup, up to 4 hours of
 journal history is replayed to restore current state; users exceeding the new
 MAX_CONNECTIONS are kicked so they re-authenticate under the updated limit.
+
+On every startup, config.json is verified to point to the proxy port. If it was
+reset (e.g. by upgrade.sh), it is corrected and hysteria-server is restarted.
 """
 
 import init_paths
@@ -40,7 +43,8 @@ logger = logging.getLogger()
 
 SERVICE_NAME = 'hysteria-conn-limit.service'
 PROXY_PORT = 28263
-GO_AUTH_URL = 'http://127.0.0.1:28262/auth'
+GO_AUTH_PORT = 28262
+GO_AUTH_URL = f'http://127.0.0.1:{GO_AUTH_PORT}/auth'
 TRAFFIC_API_URL = 'http://127.0.0.1:25413'
 DEFAULT_MAX_CONNECTIONS = 2
 
@@ -142,6 +146,32 @@ async def _init_counts():
         logger.info('No active connections found in journal history.')
 
 
+def _ensure_auth_proxy_config() -> bool:
+    """
+    Verify config.json auth URL points to our proxy (port 28263).
+    Returns True if the config was wrong and was updated (caller must restart
+    hysteria-server so it picks up the corrected URL).
+
+    This self-healing is needed because upgrade.sh always resets the auth URL
+    to port 28262 (direct Go auth server).
+    """
+    expected_url = f'http://127.0.0.1:{PROXY_PORT}/auth'
+    try:
+        with open(CONFIG_FILE) as f:
+            config = json.load(f)
+        current_url = config.get('auth', {}).get('http', {}).get('url', '')
+        if current_url == expected_url:
+            return False
+        logger.warning(
+            f'config.json auth URL is {current_url!r} instead of {expected_url!r} — fixing.'
+        )
+        _update_config_json(PROXY_PORT)
+        return True
+    except Exception as e:
+        logger.error(f'Could not check/fix config.json: {e}')
+        return False
+
+
 async def _auth_handler(request: web.Request) -> web.Response:
     try:
         data = await request.json()
@@ -201,21 +231,36 @@ async def _run():
         f'proxy on 127.0.0.1:{PROXY_PORT}'
     )
 
-    await _init_counts()
+    # Ensure hysteria-server uses our proxy. If config.json was reset by
+    # upgrade.sh (which always writes port 28262), fix it and restart the server.
+    # When the server restarts all connections are terminated, so we start fresh.
+    config_was_wrong = _ensure_auth_proxy_config()
+    if config_was_wrong:
+        logger.info('Restarting hysteria-server to apply corrected auth URL...')
+        proc = await asyncio.create_subprocess_exec(
+            'systemctl', 'restart', 'hysteria-server.service',
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.wait()
+        await asyncio.sleep(2)
+        logger.info('hysteria-server restarted — all prior connections terminated, counts start at 0.')
+    else:
+        # Normal restart (config already correct): restore state from journal.
+        await _init_counts()
 
-    # Kick and clear users who exceed the (possibly newly lowered) limit so
-    # they are forced to re-authenticate through the proxy with the new limit.
-    to_kick = []
-    with _lock:
-        for username, count in list(_counts.items()):
-            if count > _max_conn and not _is_unlimited(username):
-                logger.warning(
-                    f'{username} has {count} active connections, exceeds new limit {_max_conn} — kicking.'
-                )
-                to_kick.append(username)
-                del _counts[username]  # reset so re-auth goes through the normal flow
-    if to_kick:
-        _kick_users(to_kick)
+        # Kick and clear users who exceed the (possibly newly lowered) limit so
+        # they re-authenticate through the proxy with the new limit applied.
+        to_kick = []
+        with _lock:
+            for username, count in list(_counts.items()):
+                if count > _max_conn and not _is_unlimited(username):
+                    logger.warning(
+                        f'{username} has {count} active connections, exceeds new limit {_max_conn} — kicking.'
+                    )
+                    to_kick.append(username)
+                    del _counts[username]
+        if to_kick:
+            _kick_users(to_kick)
 
     app = web.Application()
     app.router.add_post('/auth', _auth_handler)
@@ -278,7 +323,7 @@ def _uninstall_service():
     if os.path.exists(unit_file):
         os.remove(unit_file)
 
-    _update_config_json(28262)
+    _update_config_json(GO_AUTH_PORT)
 
     os.system('systemctl daemon-reload')
     os.system('systemctl restart hysteria-server.service')
