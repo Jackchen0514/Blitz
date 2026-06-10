@@ -1,3 +1,29 @@
+# v1.0.16
+
+## Fixes
+
+- **Connection Limiter**: Fix count reset and race condition when MAX_CONNECTIONS is changed
+
+  Two bugs caused the limit to stop working after changing MAX_CONNECTIONS (e.g. 1→2→1):
+
+  1. **Count reset on restart**: When the limiter service restarted, `_counts` was
+     reset to zero. Existing connections were not counted, so both devices could
+     re-authenticate and both pass the `count >= MAX` check.
+
+  2. **Race condition on simultaneous reconnect**: After kicking users, both devices
+     reconnected at nearly the same time. The count was only updated via journal log
+     events (after Hysteria2 confirmed the connection), so both auth requests saw
+     `count=0` and both passed before either log event was processed.
+
+  Fixes:
+  - On startup, replay the last 4 hours of `hysteria-server` journal to restore
+    the current connection state. Users exceeding the new limit are kicked and
+    their counts are reset so re-authentication goes through the normal flow.
+  - Count is now incremented **inside the auth handler, under lock**, before
+    returning OK. Simultaneous reconnects are serialized: the first sees `count=0`
+    and passes; the second sees `count=1` and is rejected. The journal monitor
+    now only handles `client disconnected` events (decrement).
+
 # v1.0.15
 
 ## Fixes
