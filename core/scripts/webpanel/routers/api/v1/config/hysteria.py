@@ -1,6 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
 from ..schema.config.hysteria import ConfigFile, GetPortResponse, GetSniResponse, GetObfsResponse, GetMasqueradeStatusResponse
-from ..schema.response import DetailResponse, IPLimitConfig, SetupDecoyRequest, DecoyStatusResponse, IPLimitConfigResponse
+from ..schema.response import DetailResponse, IPLimitConfig, SetupDecoyRequest, DecoyStatusResponse, IPLimitConfigResponse, ConnLimitConfig, ConnLimitConfigResponse
 from fastapi.responses import FileResponse
 import shutil
 import zipfile
@@ -382,6 +382,42 @@ async def get_ip_limit_config_api():
         return IPLimitConfigResponse(**config)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error retrieving IP Limiter configuration: {str(e)}')
+
+@router.post('/conn-limit/start', response_model=DetailResponse, summary='Start Connection Limiter Service')
+async def start_conn_limit_api():
+    """Starts the per-user connection limiter service."""
+    try:
+        cli_api.start_connection_limiter()
+        return DetailResponse(detail='Connection limiter service started successfully.')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Error starting connection limiter: {str(e)}')
+
+@router.post('/conn-limit/stop', response_model=DetailResponse, summary='Stop Connection Limiter Service')
+async def stop_conn_limit_api():
+    """Stops the per-user connection limiter service."""
+    try:
+        cli_api.stop_connection_limiter()
+        return DetailResponse(detail='Connection limiter service stopped successfully.')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Error stopping connection limiter: {str(e)}')
+
+@router.post('/conn-limit/config', response_model=DetailResponse, summary='Configure Connection Limiter')
+async def config_conn_limit_api(config: ConnLimitConfig):
+    """Sets the maximum concurrent connections per user."""
+    try:
+        cli_api.config_connection_limiter(config.max_connections)
+        return DetailResponse(detail=f'MAX_CONNECTIONS set to {config.max_connections}.')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Error configuring connection limiter: {str(e)}')
+
+@router.get('/conn-limit/config', response_model=ConnLimitConfigResponse, summary='Get Connection Limiter Configuration')
+async def get_conn_limit_config_api():
+    """Retrieves the current connection limiter configuration."""
+    try:
+        config = cli_api.get_connection_limiter_config()
+        return ConnLimitConfigResponse(**config)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error retrieving connection limiter configuration: {str(e)}')
 
 def run_setup_decoy_background(domain: str, decoy_path: str):
     """Function to run decoy setup in the background."""

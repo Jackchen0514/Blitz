@@ -20,3 +20,9 @@ class SetupDecoyRequest(BaseModel):
 class DecoyStatusResponse(BaseModel):
     active: bool = Field(..., description="Whether the decoy site is currently configured and active")
     path: Optional[str] = Field(None, description="The configured path for the decoy site, if active")
+
+class ConnLimitConfig(BaseModel):
+    max_connections: int = Field(..., gt=0, example=2, description="Maximum concurrent connections per user")
+
+class ConnLimitConfigResponse(BaseModel):
+    max_connections: Optional[int] = Field(None, description="Current maximum concurrent connections per user (None = not configured, default 2)")

@@ -63,6 +63,7 @@ class Command(Enum):
     VERSION = os.path.join(SCRIPT_DIR, 'hysteria2', 'version.py')
     LIMIT_SCRIPT = os.path.join(SCRIPT_DIR, 'hysteria2', 'limit.sh')
     KICK_USER_SCRIPT = os.path.join(SCRIPT_DIR, 'hysteria2', 'kickuser.py')
+    CONN_LIMIT_SCRIPT = os.path.join(SCRIPT_DIR, 'hysteria2', 'connection_limiter.py')
 
 
 # region Custom Exceptions
@@ -919,4 +920,35 @@ def get_ip_limiter_config() -> dict[str, int | None]:
     except Exception as e:
         print(f"Error reading IP Limiter config from .configs.env: {e}")
         return {"block_duration": None, "max_ips": None}
+
+
+def start_connection_limiter():
+    '''Starts the connection limiter service.'''
+    run_cmd(['python3', Command.CONN_LIMIT_SCRIPT.value, 'start'])
+
+def stop_connection_limiter():
+    '''Stops the connection limiter service.'''
+    run_cmd(['python3', Command.CONN_LIMIT_SCRIPT.value, 'stop'])
+
+def config_connection_limiter(max_connections: Optional[int] = None):
+    '''Sets MAX_CONNECTIONS in .configs.env and restarts the service if running.'''
+    if max_connections is not None and max_connections <= 0:
+        raise InvalidInputError("max_connections must be greater than 0.")
+    cmd_args = ['python3', Command.CONN_LIMIT_SCRIPT.value, 'config']
+    if max_connections is not None:
+        cmd_args.append(str(max_connections))
+    run_cmd(cmd_args)
+
+def get_connection_limiter_config() -> dict[str, int | None]:
+    '''Retrieves the current connection limiter configuration from .configs.env.'''
+    try:
+        if not os.path.exists(CONFIG_ENV_FILE):
+            return {"max_connections": None}
+        env_vars = dotenv_values(CONFIG_ENV_FILE)
+        val = env_vars.get('MAX_CONNECTIONS')
+        max_connections = int(val) if val and str(val).isdigit() else None
+        return {"max_connections": max_connections}
+    except Exception as e:
+        print(f"Error reading connection limiter config: {e}")
+        return {"max_connections": None}
 # endregion
