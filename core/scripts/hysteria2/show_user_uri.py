@@ -52,15 +52,16 @@ def load_hysteria2_ips() -> Tuple[str, str, str]:
     sni = env_vars.get('SNI', '')
     return ip4, ip6, sni
 
-def load_port_hop_config() -> Tuple[int, int, int]:
+def load_port_hop_config(ip_version: int = 4) -> Tuple[int, int, int]:
     env_vars = load_hysteria2_env()
-    try:
-        port_min = int(env_vars.get('PORT_HOP_MIN', 10000))
-        port_max = int(env_vars.get('PORT_HOP_MAX', 60000))
-        block_size = int(env_vars.get('PORT_HOP_BLOCK', 100))
-    except ValueError:
-        port_min, port_max, block_size = 10000, 60000, 100
-    return port_min, port_max, block_size
+    suffix = f'_V{ip_version}'
+    def _int(key: str, default: int) -> int:
+        v = env_vars.get(key + suffix) or env_vars.get(key)
+        try:
+            return int(v) if v else default
+        except ValueError:
+            return default
+    return _int('PORT_HOP_MIN', 10000), _int('PORT_HOP_MAX', 60000), _int('PORT_HOP_BLOCK', 100)
 
 def get_singbox_domain_and_port() -> Tuple[str, str]:
     env_vars = load_env_file(SINGBOX_ENV)
@@ -175,20 +176,19 @@ def show_uri(args: argparse.Namespace) -> None:
     local_insecure = config.get("tls", {}).get("insecure", True)
     
     ip4, ip6, local_sni = load_hysteria2_ips()
-    port_min, port_max, block_size = load_port_hop_config()
     nodes = load_nodes()
     terminal_width = get_terminal_width()
 
     if args.all or args.ip_version == 4:
         if ip4 and ip4 != "None":
-            port4, mport4 = get_random_port(port_min, port_max, block_size)
+            port4, mport4 = get_random_port(*load_port_hop_config(4))
             uri = generate_uri(args.username, auth_password, ip4, port4,
                                  local_obfs_password, local_sha256, local_sni, 4, local_insecure, "IPv4", mport4)
             display_uri_and_qr(uri, "IPv4", args, terminal_width)
 
     if args.all or args.ip_version == 6:
         if ip6 and ip6 != "None":
-            port6, mport6 = get_random_port(port_min, port_max, block_size)
+            port6, mport6 = get_random_port(*load_port_hop_config(6))
             uri = generate_uri(args.username, auth_password, ip6, port6,
                                  local_obfs_password, local_sha256, local_sni, 6, local_insecure, "IPv6", mport6)
             display_uri_and_qr(uri, "IPv6", args, terminal_width)
@@ -206,7 +206,7 @@ def show_uri(args: argparse.Namespace) -> None:
             if raw_node_port is not None:
                 node_port, node_mport = str(raw_node_port), None
             else:
-                node_port, node_mport = get_random_port(port_min, port_max, block_size)
+                node_port, node_mport = get_random_port(*load_port_hop_config(ip_v))
             node_sni = node.get("sni", local_sni)
             node_obfs = node.get("obfs", local_obfs_password)
             node_pin = node.get("pinSHA256", local_sha256)

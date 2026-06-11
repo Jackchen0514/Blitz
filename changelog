@@ -1,3 +1,23 @@
+# v1.0.20
+
+## Features
+
+- **Per-IP-version port hop config**: IPv4 and IPv6 port hopping can now be
+  configured independently.
+
+  New env variables in `.configs.env` (all optional):
+  ```
+  PORT_HOP_MIN_V4=10100   PORT_HOP_MAX_V4=10500   PORT_HOP_BLOCK_V4=40
+  PORT_HOP_MIN_V6=20000   PORT_HOP_MAX_V6=30000   PORT_HOP_BLOCK_V6=100
+  ```
+  Priority: V4/V6-specific → shared (`PORT_HOP_MIN/MAX/BLOCK`) → default (10000/60000/100).
+
+  - `wrapper_uri.py` and `show_user_uri.py`: URI generation now selects port hop
+    config based on the IP version of each link (IPv4, IPv6, and nodes).
+  - `menu.sh`: New **Port Hop Config** menu under Advance Menu → [19]. Shows
+    current effective values per IP version, and allows setting shared or
+    per-version settings independently.
+
 # v1.0.19
 
 ## Features

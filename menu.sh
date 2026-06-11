@@ -997,6 +997,101 @@ masquerade_handler() {
     done
 }
 
+_set_env_value() {
+    local key="$1" value="$2" file="$CONFIG_ENV"
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+    else
+        echo "${key}=${value}" >> "$file"
+    fi
+}
+
+_del_env_key() {
+    local key="$1" file="$CONFIG_ENV"
+    sed -i "/^${key}=/d" "$file" 2>/dev/null
+}
+
+_show_hop_val() {
+    local specific shared default="$3"
+    specific=$(grep "^${1}=" "$CONFIG_ENV" 2>/dev/null | cut -d'=' -f2)
+    shared=$(grep "^${2}=" "$CONFIG_ENV" 2>/dev/null | cut -d'=' -f2)
+    if [[ -n "$specific" ]]; then
+        echo "${specific} (v4/v6 specific)"
+    elif [[ -n "$shared" ]]; then
+        echo "${shared} (shared)"
+    else
+        echo "${default} (default)"
+    fi
+}
+
+port_hop_handler() {
+    while true; do
+        clear
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        echo -e "${yellow}              ☼ Port Hop Config ☼              ${NC}"
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        printf "  %-14s  %-28s  %-28s\n" "" "IPv4" "IPv6"
+        printf "  %-14s  %-28s  %-28s\n" "MIN" \
+            "$(_show_hop_val PORT_HOP_MIN_V4 PORT_HOP_MIN 10000)" \
+            "$(_show_hop_val PORT_HOP_MIN_V6 PORT_HOP_MIN 10000)"
+        printf "  %-14s  %-28s  %-28s\n" "MAX" \
+            "$(_show_hop_val PORT_HOP_MAX_V4 PORT_HOP_MAX 60000)" \
+            "$(_show_hop_val PORT_HOP_MAX_V6 PORT_HOP_MAX 60000)"
+        printf "  %-14s  %-28s  %-28s\n" "BLOCK" \
+            "$(_show_hop_val PORT_HOP_BLOCK_V4 PORT_HOP_BLOCK 100)" \
+            "$(_show_hop_val PORT_HOP_BLOCK_V6 PORT_HOP_BLOCK 100)"
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        echo -e "${cyan}[1]${NC} Set IPv4 port hop"
+        echo -e "${cyan}[2]${NC} Set IPv6 port hop"
+        echo -e "${cyan}[3]${NC} Set shared port hop (applies to both if v4/v6 not set)"
+        echo -e "${red}[4]${NC} Clear IPv4-specific settings (fall back to shared)"
+        echo -e "${red}[5]${NC} Clear IPv6-specific settings (fall back to shared)"
+        echo -e "${red}[0]${NC} Back"
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        read -p "Choose an option: " option
+
+        case $option in
+            1|2)
+                local ver="V${option}" label="IPv${option}"
+                [[ "$option" == "1" ]] && { ver="V4"; label="IPv4"; } || { ver="V6"; label="IPv6"; }
+                local min max block
+                read -p "Enter MIN port for ${label} (leave empty to keep current): " min
+                read -p "Enter MAX port for ${label} (leave empty to keep current): " max
+                read -p "Enter BLOCK size for ${label} (leave empty to keep current): " block
+                [[ -n "$min"   ]] && _set_env_value "PORT_HOP_MIN_${ver}"   "$min"
+                [[ -n "$max"   ]] && _set_env_value "PORT_HOP_MAX_${ver}"   "$max"
+                [[ -n "$block" ]] && _set_env_value "PORT_HOP_BLOCK_${ver}" "$block"
+                echo "Saved."
+                ;;
+            3)
+                local min max block
+                read -p "Enter shared MIN port (leave empty to keep current): " min
+                read -p "Enter shared MAX port (leave empty to keep current): " max
+                read -p "Enter shared BLOCK size (leave empty to keep current): " block
+                [[ -n "$min"   ]] && _set_env_value "PORT_HOP_MIN"   "$min"
+                [[ -n "$max"   ]] && _set_env_value "PORT_HOP_MAX"   "$max"
+                [[ -n "$block" ]] && _set_env_value "PORT_HOP_BLOCK" "$block"
+                echo "Saved."
+                ;;
+            4)
+                _del_env_key PORT_HOP_MIN_V4
+                _del_env_key PORT_HOP_MAX_V4
+                _del_env_key PORT_HOP_BLOCK_V4
+                echo "IPv4-specific port hop settings cleared."
+                ;;
+            5)
+                _del_env_key PORT_HOP_MIN_V6
+                _del_env_key PORT_HOP_MAX_V6
+                _del_env_key PORT_HOP_BLOCK_V6
+                echo "IPv6-specific port hop settings cleared."
+                ;;
+            0) break ;;
+            *) echo "Invalid option." ;;
+        esac
+        [[ "$option" != "0" ]] && read -rp "Press Enter to continue..."
+    done
+}
+
 conn_limit_handler() {
     while true; do
         local current_max
@@ -1275,7 +1370,8 @@ display_advance_menu() {
     echo -e "${cyan}[16] ${NC}↝ Update Core Hysteria2"
     echo -e "${cyan}[17] ${NC}↝ IP Limiter Menu"
     echo -e "${cyan}[18] ${NC}↝ Connection Limiter Menu"
-    echo -e "${red}[19] ${NC}↝ Uninstall Hysteria2"
+    echo -e "${cyan}[19] ${NC}↝ Port Hop Config"
+    echo -e "${red}[20] ${NC}↝ Uninstall Hysteria2"
     echo -e "${red}[0] ${NC}↝ Back to Main Menu"
     echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
     echo -ne "${yellow}➜ Enter your option: ${NC}"
@@ -1306,7 +1402,8 @@ advance_menu() {
             16) python3 $CLI_PATH update-hysteria2 ;;
             17) ip_limit_handler ;;
             18) conn_limit_handler ;;
-            19) python3 $CLI_PATH uninstall-hysteria2 ;;
+            19) port_hop_handler ;;
+            20) python3 $CLI_PATH uninstall-hysteria2 ;;
             0) return ;;
             *) echo "Invalid option. Please try again." ;;
         esac
