@@ -1,3 +1,19 @@
+# v1.0.18
+
+## Features
+
+- **Connection Limiter installed by default**: The connection limiter is now
+  automatically set up during fresh Hysteria2 installation with `MAX_CONNECTIONS=2`.
+  No manual activation needed.
+
+  - `core/scripts/hysteria2/install.sh`: after setting up the auth server and
+    scheduler, writes `MAX_CONNECTIONS=2` to `.configs.env` and calls
+    `connection_limiter.py start` to install and activate the proxy service.
+  - `path.sh`: added `CONN_LIMIT_SCRIPT` and `VENV_PYTHON` constants for use
+    in shell scripts.
+  - `upgrade.sh`: appends `MAX_CONNECTIONS=2` to `.configs.env` during upgrade
+    if the key is not yet present (covers servers installed before this version).
+
 # v1.0.17
 
 ## Fixes
