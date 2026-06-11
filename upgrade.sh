@@ -311,6 +311,12 @@ pip install --upgrade pip >/dev/null
 pip install -r requirements.txt >/dev/null
 success "Python environment ready."
 
+# ========== Default MAX_CONNECTIONS ==========
+if [[ -f "$HYSTERIA_INSTALL_DIR/.configs.env" ]] && ! grep -q "^MAX_CONNECTIONS=" "$HYSTERIA_INSTALL_DIR/.configs.env"; then
+    echo "MAX_CONNECTIONS=2" >> "$HYSTERIA_INSTALL_DIR/.configs.env"
+    info "Added default MAX_CONNECTIONS=2 to .configs.env"
+fi
+
 # ========== Data Migration ==========
 migrate_json_to_mongo
 

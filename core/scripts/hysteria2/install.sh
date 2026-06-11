@@ -98,6 +98,18 @@ install_hysteria() {
     if ! check_scheduler_service; then
         setup_hysteria_scheduler
     fi
+
+    echo "Setting up connection limiter (MAX_CONNECTIONS=2)..."
+    # Write default MAX_CONNECTIONS into .configs.env if not already present
+    if ! grep -q "^MAX_CONNECTIONS=" "$CONFIG_ENV" 2>/dev/null; then
+        echo "MAX_CONNECTIONS=2" >> "$CONFIG_ENV"
+    fi
+    $VENV_PYTHON "$CONN_LIMIT_SCRIPT" start
+    if systemctl is-active --quiet hysteria-conn-limit.service; then
+        echo -e "${cyan}Connection limiter${NC} started (MAX_CONNECTIONS=2)."
+    else
+        echo -e "${yellow}Warning:${NC} Connection limiter failed to start. You can enable it later from the menu."
+    fi
 }
 
 if systemctl is-active --quiet hysteria-server.service; then
