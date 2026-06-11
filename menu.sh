@@ -997,6 +997,70 @@ masquerade_handler() {
     done
 }
 
+conn_limit_handler() {
+    while true; do
+        local current_max
+        current_max=$(grep '^MAX_CONNECTIONS=' /etc/hysteria/.configs.env 2>/dev/null | cut -d'=' -f2)
+        current_max=${current_max:-2}
+
+        local status_str
+        if systemctl is-active --quiet hysteria-conn-limit.service; then
+            status_str="${green}Active${NC}"
+        else
+            status_str="${red}Inactive${NC}"
+        fi
+
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        echo -e "${yellow}             ☼ Connection Limiter Menu ☼             ${NC}"
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        echo -e "  Status: $status_str   MAX_CONNECTIONS: ${cyan}${current_max}${NC}"
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        echo -e "${cyan}[1]${NC} Change MAX_CONNECTIONS"
+        echo -e "${green}[2]${NC} Start Connection Limiter"
+        echo -e "${red}[3]${NC} Stop Connection Limiter"
+        echo -e "${red}[0]${NC} Back"
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        read -p "Choose an option: " option
+
+        case $option in
+            1)
+                while true; do
+                    read -e -p "Enter new MAX_CONNECTIONS (current: ${current_max}): " new_max
+                    if [[ -z "$new_max" ]]; then
+                        echo "No change."
+                        break
+                    elif ! [[ "$new_max" =~ ^[1-9][0-9]*$ ]]; then
+                        echo "Invalid value. Please enter a positive integer."
+                    else
+                        $VENV_PYTHON "$CONN_LIMIT_SCRIPT" config "$new_max"
+                        break
+                    fi
+                done
+                ;;
+            2)
+                if systemctl is-active --quiet hysteria-conn-limit.service; then
+                    echo "Connection limiter is already active."
+                else
+                    $VENV_PYTHON "$CONN_LIMIT_SCRIPT" start
+                fi
+                ;;
+            3)
+                if ! systemctl is-active --quiet hysteria-conn-limit.service; then
+                    echo "Connection limiter is already inactive."
+                else
+                    $VENV_PYTHON "$CONN_LIMIT_SCRIPT" stop
+                fi
+                ;;
+            0)
+                break
+                ;;
+            *)
+                echo "Invalid option. Please try again."
+                ;;
+        esac
+    done
+}
+
 ip_limit_handler() {
     while true; do
         echo -e "${cyan}1.${NC} Start IP Limiter Service"
@@ -1210,7 +1274,8 @@ display_advance_menu() {
     echo -e "${cyan}[15] ${NC}↝ Restart Hysteria2"
     echo -e "${cyan}[16] ${NC}↝ Update Core Hysteria2"
     echo -e "${cyan}[17] ${NC}↝ IP Limiter Menu"
-    echo -e "${red}[18] ${NC}↝ Uninstall Hysteria2"
+    echo -e "${cyan}[18] ${NC}↝ Connection Limiter Menu"
+    echo -e "${red}[19] ${NC}↝ Uninstall Hysteria2"
     echo -e "${red}[0] ${NC}↝ Back to Main Menu"
     echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
     echo -ne "${yellow}➜ Enter your option: ${NC}"
@@ -1240,7 +1305,8 @@ advance_menu() {
             15) python3 $CLI_PATH restart-hysteria2 ;;
             16) python3 $CLI_PATH update-hysteria2 ;;
             17) ip_limit_handler ;;
-            18) python3 $CLI_PATH uninstall-hysteria2 ;;
+            18) conn_limit_handler ;;
+            19) python3 $CLI_PATH uninstall-hysteria2 ;;
             0) return ;;
             *) echo "Invalid option. Please try again." ;;
         esac

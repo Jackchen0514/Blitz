@@ -1,3 +1,16 @@
+# v1.0.19
+
+## Features
+
+- **Connection Limiter Menu**: Added "Connection Limiter Menu" as option 18 in
+  the Advance Menu (Uninstall Hysteria2 shifted to option 19).
+
+  The menu shows current service status and MAX_CONNECTIONS value, and provides:
+  - [1] Change MAX_CONNECTIONS (restarts the limiter with new limit, kicks
+        users who exceed it)
+  - [2] Start Connection Limiter
+  - [3] Stop Connection Limiter
+
 # v1.0.18
 
 ## Features
