@@ -15,7 +15,7 @@ def add_user(username, traffic_gb, expiration_days, password=None, unlimited_use
         return 1
 
     if db is None:
-        print("Error: Database connection failed. Please ensure MongoDB is running and configured.")
+        print("Error: Database connection failed.")
         return 1
 
     try:

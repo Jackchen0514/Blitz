@@ -1,3 +1,25 @@
+# v1.0.22-nodb — Remove remaining MongoDB dependencies
+
+*Released: 2026-06-22*
+
+Several scripts were left over from before the MongoDB → JSON migration and
+still called `mongosh`/`mongodump`/`pymongo` directly, which fail on a nodb
+install (no MongoDB server present):
+
+- **IP Limiter** (`limit.sh`, Advance Menu → [17]): tracked per-user active
+  IPs in a MongoDB `active_connections` collection via `mongosh`. Replaced
+  with a new `conn_store.py` helper that stores the same data in
+  `hysteria_connections.json`, guarded by `flock` for safe concurrent access.
+  The systemd unit no longer requires `mongod.service`.
+- **Backup/Restore** (`backup.py`/`restore.py`): used `mongodump`/
+  `mongorestore` to back up user data. Now backs up/restores
+  `users_data.json` directly, matching the JSON-file user store.
+- **Uninstall** (`uninstall.py`): dropped the `pymongo`-based MongoDB
+  database cleanup step (`rm -rf /etc/hysteria` already removes
+  `users_data.json`).
+- Cosmetic: removed misleading "ensure MongoDB is running" text from
+  `add_user.py`/`get_user.py`/`remove_user.py` error messages.
+
 # v1.0.21-nodb — Fix upgrade.sh for nodb
 
 *Released: 2026-06-22*

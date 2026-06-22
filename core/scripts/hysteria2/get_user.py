@@ -18,7 +18,7 @@ def get_user_info(username):
         int: 0 on success, 1 on failure.
     """
     if db is None:
-        print("Error: Database connection failed. Please ensure MongoDB is running.")
+        print("Error: Database connection failed.")
         return 1
         
     try:

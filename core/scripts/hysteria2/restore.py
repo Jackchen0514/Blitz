@@ -9,7 +9,6 @@ import tempfile
 import subprocess
 from pathlib import Path
 
-DB_NAME = "blitz_panel"
 HYSTERIA_CONFIG_DIR = Path("/etc/hysteria")
 CLI_PATH = Path("/etc/hysteria/core/cli.py")
 
@@ -54,15 +53,13 @@ def main():
                 print("Error: Invalid or corrupt ZIP file.", file=sys.stderr)
                 return 1
 
-            dump_dir = temp_dir / DB_NAME
-            if not dump_dir.is_dir():
-                print("Error: Backup is in an old format or is missing the database dump.", file=sys.stderr)
-                print("Please use a backup created with the new MongoDB-aware script.", file=sys.stderr)
-                return 1
-            
-            print("Restoring MongoDB database... (This will drop the current user data)")
-            run_command(f"mongorestore --db={DB_NAME} --drop --dir='{dump_dir}'", check=True)
-            print("Database restored successfully.")
+            users_data_src = temp_dir / "users_data.json"
+            if users_data_src.exists():
+                print("Restoring user data... (This will replace the current users_data.json)")
+                shutil.copy2(users_data_src, HYSTERIA_CONFIG_DIR / "users_data.json")
+                print("User data restored successfully.")
+            else:
+                print("Warning: users_data.json not found in backup. Skipping user data restore.", file=sys.stderr)
 
             files_to_copy = ["config.json", ".configs.env", "ca.key", "ca.crt"]
             print("Restoring configuration files...")

@@ -7,7 +7,7 @@ from db.database import db
 
 def remove_users(usernames):
     if db is None:
-        return 1, "Error: Database connection failed. Please ensure MongoDB is running."
+        return 1, "Error: Database connection failed."
 
     if not usernames:
         return 1, "Error: No usernames provided for removal."

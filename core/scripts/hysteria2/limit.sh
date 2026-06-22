@@ -3,8 +3,7 @@
 source /etc/hysteria/core/scripts/path.sh
 
 SERVICE_NAME="hysteria-ip-limit.service"
-DB_NAME="blitz_panel"
-CONNECTIONS_COLLECTION="active_connections"
+PY="$VENV_PYTHON $CONN_STORE_SCRIPT"
 
 if [ -f "$CONFIG_ENV" ]; then
   source "$CONFIG_ENV"
@@ -28,30 +27,16 @@ log_message() {
 add_ip_to_db() {
     local username="$1"
     local ip_address="$2"
-    
-    mongosh "$DB_NAME" --quiet --eval "
-        db.getCollection('$CONNECTIONS_COLLECTION').updateOne(
-            { _id: '$username' },
-            { \$addToSet: { ips: '$ip_address' } },
-            { upsert: true }
-        );
-    "
+
+    $PY add_ip "$username" "$ip_address"
     log_message "INFO" "DB Update: Added $ip_address for user $username"
 }
 
 remove_ip_from_db() {
     local username="$1"
     local ip_address="$2"
-    
-    mongosh "$DB_NAME" --quiet --eval "
-        db.getCollection('$CONNECTIONS_COLLECTION').updateOne(
-            { _id: '$username' },
-            { \$pull: { ips: '$ip_address' } }
-        );
-        db.getCollection('$CONNECTIONS_COLLECTION').deleteMany(
-            { _id: '$username', ips: { \$size: 0 } }
-        );
-    "
+
+    $PY remove_ip "$username" "$ip_address"
     log_message "INFO" "DB Update: Removed $ip_address for user $username"
 }
 
@@ -82,20 +67,18 @@ unblock_ip() {
 
 block_all_user_ips() {
     local username="$1"
-    
+
     local ips_json
-    ips_json=$(mongosh "$DB_NAME" --quiet --eval "
-        JSON.stringify(db.getCollection('$CONNECTIONS_COLLECTION').findOne({_id: '$username'}, {_id: 0, ips: 1}))
-    ")
+    ips_json=$($PY get_ips "$username")
 
     if [[ -z "$ips_json" || "$ips_json" == "null" ]]; then
         log_message "INFO" "No IPs to block for user $username"
         return
     fi
-    
+
     local ips
-    readarray -t ips < <(echo "$ips_json" | jq -r '.ips[]')
-    
+    readarray -t ips < <(echo "$ips_json" | jq -r '.[]')
+
     for ip in "${ips[@]}"; do
         if [[ -n "$ip" ]]; then
             block_ip "$ip" "$username"
@@ -121,11 +104,9 @@ check_expired_blocks() {
 
 check_ip_limit() {
     local username="$1"
-    
+
     local ip_count
-    ip_count=$(mongosh "$DB_NAME" --quiet --eval "
-        db.getCollection('$CONNECTIONS_COLLECTION').findOne({_id: '$username'})?.ips?.length || 0;
-    ")
+    ip_count=$($PY get_count "$username")
 
     if (( ip_count > MAX_IPS )); then
         log_message "WARN" "User $username has $ip_count IPs (max: $MAX_IPS) - blocking all IPs"
@@ -147,10 +128,8 @@ clean_all() {
     > "$BLOCK_LIST"
     log_message "INFO" "All IPs unblocked and block list file cleared."
 
-    mongosh "$DB_NAME" --quiet --eval "
-        db.getCollection('$CONNECTIONS_COLLECTION').drop();
-    "
-    log_message "INFO" "MongoDB collection '$CONNECTIONS_COLLECTION' has been dropped."
+    $PY clean
+    log_message "INFO" "Connections store '$CONNECTIONS_FILE' has been cleared."
 
     log_message "WARN" "Cleanup complete."
 }
@@ -172,11 +151,9 @@ parse_log_line() {
                 fi
             else
                 add_ip_to_db "$username" "$ip_address"
-                
+
                 local is_unlimited
-                is_unlimited=$(mongosh "$DB_NAME" --quiet --eval "
-                    db.users.findOne({_id: '$username'}, {_id: 0, unlimited_user: 1})?.unlimited_user || false;
-                ")
+                is_unlimited=$($PY is_unlimited "$username")
 
                 if [ "$is_unlimited" == "true" ]; then
                     log_message "INFO" "User $username is exempt from IP limit. Skipping check."
@@ -193,9 +170,9 @@ parse_log_line() {
 install_service() {
     cat <<EOF > /etc/systemd/system/${SERVICE_NAME}
 [Unit]
-Description=Hysteria2 IP Limiter (MongoDB version)
-After=network.target hysteria-server.service mongod.service
-Requires=hysteria-server.service mongod.service
+Description=Hysteria2 IP Limiter
+After=network.target hysteria-server.service
+Requires=hysteria-server.service
 
 [Service]
 Type=simple
@@ -255,10 +232,6 @@ if [[ $EUID -ne 0 ]]; then
     echo "Error: This script must be run as root."
     exit 1
 fi
-if ! command -v mongosh &>/dev/null; then
-    log_message "ERROR" "'mongosh' is not installed or not in PATH. This script requires the MongoDB Shell."
-    exit 1
-fi
 if ! command -v jq &>/dev/null; then
     log_message "WARN" "'jq' is not installed. JSON parsing for blocking might fail."
 fi
@@ -287,7 +260,7 @@ case "$1" in
             done
         ) &
         CHECKER_PID=$!
-        
+
         cleanup() {
             log_message "INFO" "Stopping IP limiter..."
             kill $CHECKER_PID 2>/dev/null
