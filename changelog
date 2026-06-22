@@ -1,3 +1,27 @@
+# v1.0.21-nodb — Fix upgrade.sh for nodb
+
+*Released: 2026-06-22*
+
+`upgrade.sh` had never been adapted for the nodb variant since the branch
+was created — it was still main's MongoDB-era script. Running it would:
+
+- Abort immediately on CPUs without AVX (the exact hardware nodb targets),
+  telling the user to run the nodb upgrade script — the one they were
+  already running.
+- If AVX *was* present, install MongoDB and download `Blitz-${arch}.zip`
+  (main's release asset, via `releases/latest`, which always resolves to
+  main since nodb releases are marked prerelease) — silently converting
+  the nodb install into a MongoDB-based main install.
+
+Fixes:
+- Removed `check_avx_support()` and `install_mongodb()` — not needed on
+  the JSON-file-storage variant.
+- `download_and_extract_latest_release()` now looks up the latest
+  `nodb`-tagged release via the GitHub API and downloads
+  `Blitz-nodb-${arch}.zip`, matching `install.sh`'s logic.
+- Renamed `migrate_json_to_mongo()` to `migrate_users_json()` to match
+  what it actually does on this branch.
+
 # v1.0.20-nodb — Sync with main
 
 *Released: 2026-06-22*

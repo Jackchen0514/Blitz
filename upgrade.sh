@@ -20,21 +20,6 @@ success() { echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] [OK] - ${RESET} $1";
 warn() { echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] [WARN] - ${RESET} $1"; }
 error() { echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] - ${RESET} $1"; }
 
-# ========== Check AVX Support ==========
-check_avx_support() {
-    info "Checking CPU for AVX support (required for MongoDB)..."
-    if grep -q -m1 -o -E 'avx|avx2|avx512' /proc/cpuinfo; then
-        success "CPU supports AVX instruction set."
-    else
-        error "CPU does not support the required AVX instruction set for MongoDB."
-        info "Your system is not compatible with this version."
-        info "Please use the 'nodb' upgrade script instead:"
-        echo -e "${YELLOW}bash <(curl -sL https://raw.githubusercontent.com/Jackchen0514/Blitz/nodb/upgrade.sh)${RESET}"
-        error "Upgrade aborted."
-        exit 1
-    fi
-}
-
 # ========== Fix Caddy Repository ==========
 fix_caddy_repo() {
     info "Checking Caddy repository configuration..."
@@ -71,47 +56,6 @@ fix_caddy_repo() {
     fi
 }
 
-# ========== Install MongoDB ==========
-install_mongodb() {
-    info "Checking for MongoDB..."
-    if ! command -v mongod &>/dev/null; then
-        warn "MongoDB not found. Installing from official repository..."
-        
-        local os_name os_version
-        os_name=$(grep '^ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
-        os_version=$(grep '^VERSION_ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
-        
-        apt-get update 
-        apt-get install -y gnupg curl lsb-release
-        
-        curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
-        
-        if [[ "$os_name" == "ubuntu" ]]; then
-            if [[ "$os_version" == "24.04" ]]; then
-                echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0 multiverse" > /etc/apt/sources.list.d/mongodb-org-8.0.list
-            elif [[ "$os_version" == "22.04" ]]; then
-                echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" > /etc/apt/sources.list.d/mongodb-org-8.0.list
-            else
-                echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" > /etc/apt/sources.list.d/mongodb-org-8.0.list
-            fi
-        elif [[ "$os_name" == "debian" ]]; then
-            # Debian 12 (bookworm) and 13 (trixie) both use the bookworm MongoDB repo
-            echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] http://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main" > /etc/apt/sources.list.d/mongodb-org-8.0.list
-        else
-            error "Unsupported OS for MongoDB installation: $os_name $os_version"
-            exit 1
-        fi
-        
-        apt-get update -qq
-        apt-get install -y mongodb-org
-        systemctl start mongod
-        systemctl enable mongod
-        success "MongoDB installed and started successfully."
-    else
-        success "MongoDB is already installed."
-    fi
-}
-
 migrate_normalsub_path() {
     local normalsub_env_file="$HYSTERIA_INSTALL_DIR/core/scripts/normalsub/.env"
     info "Checking for NormalSub configuration migration..."
@@ -139,10 +83,10 @@ migrate_normalsub_path() {
 }
 
 # ========== New Function to Migrate Data ==========
-migrate_json_to_mongo() {
+migrate_users_json() {
     info "Checking for user data migration..."
     if [[ -f "$HYSTERIA_INSTALL_DIR/users.json" ]]; then
-        info "Found users.json. Proceeding with migration to MongoDB."
+        info "Found legacy users.json. Migrating to the JSON user store."
         if python3 "$MIGRATE_SCRIPT_PATH"; then
             success "Data migration completed successfully."
         else
@@ -166,11 +110,21 @@ download_and_extract_latest_release() {
     esac
     info "Detected architecture: $arch"
 
-    local zip_name="Blitz-${arch}.zip"
-    local download_url="https://github.com/Jackchen0514/Blitz/releases/latest/download/${zip_name}"
+    info "Finding latest nodb release..."
+    local nodb_tag
+    nodb_tag=$(curl -sL "https://api.github.com/repos/Jackchen0514/Blitz/releases" | \
+        jq -r '[.[] | select(.tag_name | test("nodb")) | select(.draft == false)][0].tag_name // empty')
+    if [ -z "$nodb_tag" ]; then
+        error "Could not find a published nodb release on GitHub."
+        exit 1
+    fi
+    success "Found nodb release: $nodb_tag"
+
+    local zip_name="Blitz-nodb-${arch}.zip"
+    local download_url="https://github.com/Jackchen0514/Blitz/releases/download/${nodb_tag}/${zip_name}"
     local temp_zip="/tmp/${zip_name}"
 
-    info "Downloading latest release from ${download_url}..."
+    info "Downloading ${nodb_tag} release from ${download_url}..."
     if ! curl -sL -o "$temp_zip" "$download_url"; then
         error "Failed to download the release asset. Please check the URL and your connection."
         exit 1
@@ -215,14 +169,8 @@ for SERVICE in "${ALL_SERVICES[@]}"; do
     fi
 done
 
-# ========== Check AVX Support Prerequisite ==========
-check_avx_support
-
 # ========== Fix Caddy Repo Prerequisite ==========
 fix_caddy_repo
-
-# ========== Install MongoDB Prerequisite ==========
-install_mongodb
 
 # ========== Migrate NormalSub Path (if necessary) ==========
 # migrate_normalsub_path
@@ -318,7 +266,7 @@ if [[ -f "$HYSTERIA_INSTALL_DIR/.configs.env" ]] && ! grep -q "^MAX_CONNECTIONS=
 fi
 
 # ========== Data Migration ==========
-migrate_json_to_mongo
+migrate_users_json
 
 # ========== Systemd Services ==========
 info "Ensuring systemd services are configured..."
