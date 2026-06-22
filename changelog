@@ -1,3 +1,43 @@
+# v1.0.20-nodb — Sync with main
+
+*Released: 2026-06-22*
+
+Ports all features and fixes from main `v1.0.12` through `v1.0.20` onto the
+nodb (JSON file storage) branch. No nodb-specific changes were needed —
+these features don't touch the database layer.
+
+## Features
+
+- **Per-user concurrent connection limiter**: An auth proxy on
+  `127.0.0.1:28263` sits between Hysteria2 and the Go auth server. When a
+  user's active connection count reaches `MAX_CONNECTIONS`, new auth
+  requests are rejected with `{"ok": false}` so the client stops
+  reconnecting instead of looping. `unlimited_user` flag exempts a user
+  from the limit.
+  - Installed by default on fresh installs with `MAX_CONNECTIONS=2`.
+  - Count is tracked in memory, incremented atomically inside the auth
+    handler under lock (prevents simultaneous-reconnect races), and
+    decremented on `client disconnected` journal events.
+  - On startup, replays the last 4 hours of `hysteria-server` journal to
+    restore accurate connection state after a restart.
+  - Self-heals `config.json`'s auth URL if `upgrade.sh` resets it back to
+    the Go auth server directly, restarting `hysteria-server` to pick up
+    the fix.
+  - **Connection Limiter Menu**: Advance Menu → [18] shows service status
+    and `MAX_CONNECTIONS`, with options to change the limit, start, or
+    stop the limiter.
+
+- **Per-IP-version port hop config**: IPv4 and IPv6 port hopping can now be
+  configured independently via `PORT_HOP_MIN_V4/V6`, `PORT_HOP_MAX_V4/V6`,
+  `PORT_HOP_BLOCK_V4/V6` in `.configs.env` (falls back to shared
+  `PORT_HOP_MIN/MAX/BLOCK`, then defaults of 10000/60000/100).
+  - **Port Hop Config menu**: Advance Menu → [19] shows current effective
+    values per IP version and supports setting/clearing them.
+
+## Fixes
+
+- Support Debian 13 (trixie) in `upgrade.sh`'s MongoDB repo selection logic.
+
 # v1.0.11-nodb — No-MongoDB Edition
 
 *Released: 2026-05-19*
