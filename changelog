@@ -1,3 +1,36 @@
+# v1.0.23-nodb — Fix the Go auth server (was MongoDB-only, broke every install)
+
+*Released: 2026-06-22*
+
+`core/scripts/auth/user_auth.go` — the binary Hysteria2 calls to authenticate
+every connecting user — connected directly to MongoDB on startup
+(`mongodb://localhost:27017`) and had never been adapted for nodb. On a
+fresh nodb install this is fatal:
+
+1. `hysteria2/install.sh` starts `hysteria-auth.service` right after
+   Hysteria2 itself. With no MongoDB server, the binary calls
+   `log.Fatalf` immediately and systemd crash-loops it.
+2. The install script then checks `hysteria-auth.service` is active and
+   `exit 1`s if not — aborting the install right there.
+3. Even if that check were skipped, no user could ever authenticate, since
+   the binary never started successfully.
+
+This affected every nodb install, not just IP limiting or backups — it's
+the core auth path.
+
+Fix: rewrote `user_auth.go` to read `/etc/hysteria/users_data.json`
+directly (one read + JSON decode per auth request, matching the per-request
+MongoDB query it replaces) instead of querying MongoDB. No more MongoDB
+driver import, so `go mod tidy` in the release workflow no longer needs to
+fetch it. Verified by compiling with Go 1.22 (matching the release
+workflow) and exercising all response paths (success, wrong password,
+blocked, expired, over quota, unknown user, case-insensitive username)
+against a sample `users_data.json`.
+
+Also hardened `db/database.py`'s `_save()` to write via a temp file +
+rename instead of an in-place write, so the Go auth server (or any other
+concurrent reader) can never observe a half-written JSON file.
+
 # v1.0.22-nodb — Remove remaining MongoDB dependencies
 
 *Released: 2026-06-22*

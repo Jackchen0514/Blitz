@@ -1,38 +1,51 @@
 package main
 
 import (
-	"context"
 	"crypto/subtle"
 	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
-	listenAddr     = "127.0.0.1:28262"
-	mongoURI       = "mongodb://localhost:27017"
-	dbName         = "blitz_panel"
-	collectionName = "users"
+	listenAddr  = "127.0.0.1:28262"
+	usersDBPath = "/etc/hysteria/users_data.json"
 )
 
 type User struct {
-	ID                  string `bson:"_id"`
-	Password            string `bson:"password"`
-	MaxDownloadBytes    int64  `bson:"max_download_bytes"`
-	ExpirationDays      int    `bson:"expiration_days"`
-	AccountCreationDate string `bson:"account_creation_date"`
-	Blocked             bool   `bson:"blocked"`
-	UploadBytes         int64  `bson:"upload_bytes"`
-	DownloadBytes       int64  `bson:"download_bytes"`
-	UnlimitedUser       bool   `bson:"unlimited_user"`
+	Password            string `json:"password"`
+	MaxDownloadBytes    int64  `json:"max_download_bytes"`
+	ExpirationDays      int    `json:"expiration_days"`
+	AccountCreationDate string `json:"account_creation_date"`
+	Blocked             bool   `json:"blocked"`
+	UploadBytes         int64  `json:"upload_bytes"`
+	DownloadBytes       int64  `json:"download_bytes"`
+	UnlimitedUser       bool   `json:"unlimited_user"`
+}
+
+// usersFileMu guards reads against users_data.json being rewritten mid-read
+// (database.py's writes are not atomic).
+var usersFileMu sync.Mutex
+
+func loadUser(username string) (User, bool) {
+	usersFileMu.Lock()
+	data, err := os.ReadFile(usersDBPath)
+	usersFileMu.Unlock()
+	if err != nil {
+		return User{}, false
+	}
+
+	var allUsers map[string]User
+	if err := json.Unmarshal(data, &allUsers); err != nil {
+		return User{}, false
+	}
+
+	user, ok := allUsers[strings.ToLower(username)]
+	return user, ok
 }
 
 type httpAuthRequest struct {
@@ -45,8 +58,6 @@ type httpAuthResponse struct {
 	OK bool   `json:"ok"`
 	ID string `json:"id"`
 }
-
-var userCollection *mongo.Collection
 
 func authHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -66,12 +77,8 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user User
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err := userCollection.FindOne(ctx, bson.M{"_id": username}).Decode(&user)
-	if err != nil {
+	user, found := loadUser(username)
+	if !found {
 		json.NewEncoder(w).Encode(httpAuthResponse{OK: false})
 		return
 	}
@@ -89,7 +96,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 
 	if user.UnlimitedUser {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(httpAuthResponse{OK: true, ID: username})
+		json.NewEncoder(w).Encode(httpAuthResponse{OK: true, ID: strings.ToLower(username)})
 		return
 	}
 
@@ -107,29 +114,11 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(httpAuthResponse{OK: true, ID: username})
+	json.NewEncoder(w).Encode(httpAuthResponse{OK: true, ID: strings.ToLower(username)})
 }
 
 func main() {
-	log.SetOutput(io.Discard)
-
-	clientOptions := options.Client().ApplyURI(mongoURI)
-	client, err := mongo.Connect(context.TODO(), clientOptions)
-	if err != nil {
-		log.SetOutput(os.Stderr)
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
-	}
-
-	err = client.Ping(context.TODO(), nil)
-	if err != nil {
-		log.SetOutput(os.Stderr)
-		log.Fatalf("Failed to ping MongoDB: %v", err)
-	}
-
-	userCollection = client.Database(dbName).Collection(collectionName)
-
 	http.HandleFunc("/auth", authHandler)
-	log.SetOutput(os.Stderr)
 	log.Printf("Auth server starting on %s", listenAddr)
 	if err := http.ListenAndServe(listenAddr, nil); err != nil {
 		log.Fatalf("Failed to start server: %v", err)

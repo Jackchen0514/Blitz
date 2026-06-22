@@ -23,7 +23,11 @@ class Database:
             return {}
 
     def _save(self, data: dict):
-        self._path.write_text(json.dumps(data, indent=2))
+        # Write to a temp file then rename so concurrent readers (e.g. the
+        # Go auth server) never see a partially-written file.
+        tmp_path = self._path.with_suffix(self._path.suffix + '.tmp')
+        tmp_path.write_text(json.dumps(data, indent=2))
+        tmp_path.replace(self._path)
 
     def add_user(self, user_data: dict):
         user_data = dict(user_data)
