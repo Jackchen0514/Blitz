@@ -49,7 +49,9 @@ issue_hysteria_cert() {
             ;;
     esac
 
-    if [[ $? -ne 0 ]]; then
+    local acme_exit=$?
+    # exit code 2 = already valid, skip renewal — treat as success
+    if [[ $acme_exit -ne 0 && $acme_exit -ne 2 ]]; then
         echo -e "${red}Error: certificate issuance failed for $domain${NC}"
         exit 1
     fi

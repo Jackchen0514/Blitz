@@ -48,7 +48,8 @@ def issue_cert(domain, method, cred1="", cred2=""):
         return False
 
     ret = subprocess.run(cmd, shell=True, env=env)
-    if ret.returncode != 0:
+    # returncode 2 = cert already valid, acme.sh skipped renewal — treat as success
+    if ret.returncode not in (0, 2):
         print(f"Certificate issuance failed for {domain}")
         return False
 
