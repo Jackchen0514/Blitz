@@ -1,3 +1,22 @@
+# v1.0.30
+
+## Fixes
+
+- **DNS resolver: switch from TLS to UDP to fix i/o timeout on restricted networks**
+
+  Hysteria's default resolver was set to `type: tls` (DNS-over-TLS, port 853).
+  Servers on restricted networks cannot reach port 853, causing every DNS lookup
+  to fail with `dial tcp 1.1.1.1:853: i/o timeout`, which broke all outbound
+  TCP connections. Changed resolver type to `udp` (standard UDP/53 via 8.8.4.4),
+  which is accessible on virtually all networks.
+
+- **WebPanel: silence spurious "env variables missing" error during cert deployment**
+
+  When `tls_manager.sh`'s reload command fires during certificate deployment,
+  the WebPanel `.env` file may not exist yet (the service starts immediately
+  after). `webpanel_shell.sh updatecaddy` now skips silently when the env file
+  is absent instead of printing an error.
+
 # v1.0.29
 
 ## Features
