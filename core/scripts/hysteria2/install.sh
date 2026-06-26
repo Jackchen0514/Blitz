@@ -63,6 +63,7 @@ issue_hysteria_cert() {
         --key-file "$cert_dir/key.pem" \
         --reloadcmd "systemctl restart hysteria-server.service" > /dev/null 2>&1
 
+    chown hysteria:hysteria "$cert_dir/fullchain.pem" "$cert_dir/key.pem" 2>/dev/null || true
     chmod 640 "$cert_dir/fullchain.pem" "$cert_dir/key.pem"
     echo "Certificate deployed to $cert_dir"
 }

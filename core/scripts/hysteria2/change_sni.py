@@ -73,6 +73,7 @@ def issue_cert(domain, method, cred1="", cred2=""):
         f"--reloadcmd '{reload_cmd}'"
     )
     subprocess.run(install_cmd, shell=True)
+    subprocess.run(f"chown hysteria:hysteria {cert_dir}/fullchain.pem {cert_dir}/key.pem", shell=True)
     subprocess.run(f"chmod 640 {cert_dir}/fullchain.pem {cert_dir}/key.pem", shell=True)
     print(f"Certificate deployed to {cert_dir}")
     return True
