@@ -2,19 +2,14 @@
 source /etc/hysteria/core/scripts/utils.sh
 define_colors
 
-CADDY_CONFIG_FILE="/etc/hysteria/core/scripts/webpanel/Caddyfile"
+CADDY_DROP_IN_DIR="/etc/caddy/conf.d"
+CADDY_CONFIG_FILE="$CADDY_DROP_IN_DIR/webpanel.conf"
+CADDY_MASTER_FILE="/etc/caddy/Caddyfile"
 WEBPANEL_ENV_FILE="/etc/hysteria/core/scripts/webpanel/.env"
 
 install_dependencies() {
     if command -v caddy &> /dev/null; then
         echo -e "${green}Caddy is already installed.${NC}"
-        if systemctl list-units --full -all | grep -q 'caddy.service'; then
-            if systemctl is-active --quiet caddy.service; then
-                echo -e "${yellow}Stopping and disabling default caddy.service...${NC}"
-                systemctl stop caddy > /dev/null 2>&1
-                systemctl disable caddy > /dev/null 2>&1
-            fi
-        fi
         return 0
     fi
 
@@ -33,8 +28,6 @@ install_dependencies() {
         echo -e "${red}Error: Failed to install Caddy. ${NC}"
         exit 1
     fi
-    systemctl stop caddy > /dev/null 2>&1
-    systemctl disable caddy > /dev/null 2>&1
     echo -e "${green}Caddy installed successfully. ${NC}"
 }
 
@@ -69,29 +62,32 @@ EOL
 
 update_caddy_file() {
     source /etc/hysteria/core/scripts/webpanel/.env
-    
+
     if [ -z "$DOMAIN" ] || [ -z "$ROOT_PATH" ] || [ -z "$PORT" ]; then
         echo -e "${red}Error: One or more environment variables are missing.${NC}"
         return 1
     fi
 
+    mkdir -p "$CADDY_DROP_IN_DIR"
+
+    # Use an explicit cert if one was issued via DNS-01; otherwise Caddy auto-HTTPS handles it.
+    local tls_line=""
+    if [[ -f "/etc/caddy/ssl/$DOMAIN/fullchain.pem" && -f "/etc/caddy/ssl/$DOMAIN/key.pem" ]]; then
+        tls_line="    tls /etc/caddy/ssl/$DOMAIN/fullchain.pem /etc/caddy/ssl/$DOMAIN/key.pem"
+    fi
+
     if [ -n "$DECOY_PATH" ] && [ "$DECOY_PATH" != "None" ] && [ "$PORT" -eq 443 ]; then
         cat <<EOL > "$CADDY_CONFIG_FILE"
-{
-    admin off
-    auto_https disable_redirects
-}
-
 $DOMAIN:$PORT {
+$tls_line
     route /$ROOT_PATH/* {
-
         reverse_proxy http://127.0.0.1:28260
     }
-    
+
     @otherPaths {
         not path /$ROOT_PATH/*
     }
-    
+
     handle @otherPaths {
         root * $DECOY_PATH
         file_server
@@ -100,22 +96,16 @@ $DOMAIN:$PORT {
 EOL
     else
         cat <<EOL > "$CADDY_CONFIG_FILE"
-# Global configuration
-{
-    admin off
-    auto_https disable_redirects
-}
-
-# Listen for incoming requests on the specified domain and port
 $DOMAIN:$PORT {
+$tls_line
     route /$ROOT_PATH/* {
         reverse_proxy http://127.0.0.1:28260
     }
-    
+
     @blocked {
         not path /$ROOT_PATH/*
     }
-    
+
     abort @blocked
 }
 EOL
@@ -123,8 +113,8 @@ EOL
         if [ -n "$DECOY_PATH" ] && [ "$DECOY_PATH" != "None" ] && [ "$PORT" -ne 443 ]; then
             cat <<EOL >> "$CADDY_CONFIG_FILE"
 
-# Decoy site on port 443
 $DOMAIN:443 {
+$tls_line
     root * $DECOY_PATH
     file_server
 }
@@ -153,15 +143,26 @@ EOL
 }
 
 create_caddy_service_file() {
-    cat <<EOL > /etc/systemd/system/hysteria-caddy.service
+    mkdir -p "$CADDY_DROP_IN_DIR"
+
+    cat <<'EOL' > "$CADDY_MASTER_FILE"
+{
+    admin off
+    auto_https disable_redirects
+}
+
+import /etc/caddy/conf.d/*.conf
+EOL
+
+    cat <<EOL > /etc/systemd/system/caddy.service
 [Unit]
-Description=Hysteria2 Caddy
+Description=Caddy
 After=network.target
 
 [Service]
 WorkingDirectory=/etc/caddy
-ExecStart=/usr/bin/caddy run --environ --config $CADDY_CONFIG_FILE
-ExecReload=/usr/bin/caddy reload --config $CADDY_CONFIG_FILE --force
+ExecStart=/usr/bin/caddy run --environ --config $CADDY_MASTER_FILE
+ExecReload=/usr/bin/caddy reload --config $CADDY_MASTER_FILE --force
 TimeoutStopSec=5s
 LimitNOFILE=1048576
 PrivateTmp=true
@@ -220,8 +221,8 @@ start_service() {
     fi
 
     systemctl daemon-reload
-    systemctl enable hysteria-caddy.service 
-    systemctl start hysteria-caddy.service
+    systemctl enable caddy.service 
+    systemctl start caddy.service
     if [ $? -ne 0 ]; then
         echo -e "${red}Error: Failed to restart Caddy.${NC}"
         return 1
@@ -266,7 +267,7 @@ setup_decoy_site() {
         
         update_caddy_file
         
-        systemctl restart hysteria-caddy.service
+        systemctl restart caddy.service
         
         echo -e "${green}Decoy site configured successfully for $domain${NC}"
         if [ "$PORT" -eq 443 ]; then
@@ -299,29 +300,10 @@ stop_decoy_site() {
     fi
     
     sed -i "/DECOY_PATH=/d" /etc/hysteria/core/scripts/webpanel/.env
-    
-    cat <<EOL > "$CADDY_CONFIG_FILE"
-# Global configuration
-{
-    admin off
-    auto_https disable_redirects
-}
 
-# Listen for incoming requests on the specified domain and port
-$DOMAIN:$PORT {
-    route /$ROOT_PATH/* {
-        reverse_proxy http://127.0.0.1:28260
-    }
-    
-    @blocked {
-        not path /$ROOT_PATH/*
-    }
-    
-    abort @blocked
-}
-EOL
-    
-    systemctl restart hysteria-caddy.service
+    update_caddy_file
+
+    systemctl restart caddy.service
     
     echo -e "${green}Decoy site has been stopped and removed from configuration.${NC}"
     if [ "$was_separate_port" = true ]; then
@@ -440,7 +422,7 @@ change_root_path() {
         fi
 
         echo "Restarting services to apply changes..."
-        if systemctl restart hysteria-webpanel.service && systemctl restart hysteria-caddy.service; then
+        if systemctl restart hysteria-webpanel.service && systemctl restart caddy.service; then
             echo -e "${green}Web panel root path updated successfully.${NC}"
             echo -n "New URL: "
             show_webpanel_url
@@ -508,7 +490,7 @@ change_port_domain() {
         fi
 
         echo "Restarting Caddy service to apply changes..."
-        if systemctl restart hysteria-caddy.service; then
+        if systemctl restart caddy.service; then
             echo -e "${green}Web panel domain/port updated successfully.${NC}"
             echo -n "New URL: "
             show_webpanel_url
@@ -532,19 +514,27 @@ show_webpanel_api_token() {
 }
 
 stop_service() {
-    echo "Stopping Caddy..."
-    systemctl disable hysteria-caddy.service > /dev/null 2>&1
-    systemctl stop hysteria-caddy.service > /dev/null 2>&1
-    echo "Caddy stopped."
-    
     echo "Stopping Hysteria web panel..."
     systemctl disable hysteria-webpanel.service > /dev/null 2>&1
     systemctl stop hysteria-webpanel.service > /dev/null 2>&1
     echo "Hysteria web panel stopped."
 
-    systemctl daemon-reload
-    rm -f /etc/hysteria/core/scripts/webpanel/.env
     rm -f "$CADDY_CONFIG_FILE"
+    rm -f /etc/hysteria/core/scripts/webpanel/.env
+
+    # Only stop the shared Caddy service if no other drop-ins remain
+    if compgen -G "$CADDY_DROP_IN_DIR/*.conf" > /dev/null 2>&1; then
+        echo "Reloading Caddy (other services still active)..."
+        systemctl reload caddy.service 2>/dev/null || systemctl restart caddy.service
+    else
+        echo "Stopping Caddy..."
+        systemctl disable caddy.service > /dev/null 2>&1
+        systemctl stop caddy.service > /dev/null 2>&1
+        rm -f "$CADDY_MASTER_FILE"
+        echo "Caddy stopped."
+    fi
+
+    systemctl daemon-reload
 }
 
 case "$1" in
@@ -587,6 +577,9 @@ case "$1" in
         ;;
     api-token)
         show_webpanel_api_token
+        ;;
+    updatecaddy)
+        update_caddy_file
         ;;
     *)
         echo -e "${red}Usage: $0 {start|stop|decoy|stopdecoy|resetcreds|changeexp|changeroot|changedomain|url|api-token} [options]${NC}"

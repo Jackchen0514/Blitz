@@ -12,7 +12,9 @@ SERVICES = [
     "hysteria-server.service",
     "hysteria-auth.service",
     "hysteria-webpanel.service",
-    "hysteria-caddy.service",
+    "caddy.service",
+    "hysteria-caddy.service",          # legacy pre-merge
+    "hysteria-caddy-normalsub.service", # legacy pre-merge
     "hysteria-telegram-bot.service",
     "hysteria-normal-sub.service",
     "hysteria-singbox.service",

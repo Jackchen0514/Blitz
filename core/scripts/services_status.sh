@@ -5,10 +5,9 @@ declare -a services=(
     "hysteria-scheduler.service"
     "hysteria-auth.service"
     "hysteria-webpanel.service"
-    "hysteria-caddy.service"
+    "caddy.service"
     "hysteria-telegram-bot.service"
     "hysteria-normal-sub.service"
-    "hysteria-caddy-normalsub.service"
     "hysteria-ip-limit.service"
     "wg-quick@wgcf.service"
 )

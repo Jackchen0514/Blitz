@@ -1,3 +1,19 @@
+# v1.0.21
+
+## Refactor
+
+- **Unified Caddy service**: `hysteria-caddy.service` and `hysteria-caddy-normalsub.service`
+  are merged into a single `caddy.service`.
+
+  - Master Caddyfile at `/etc/caddy/Caddyfile` uses `import /etc/caddy/conf.d/*.conf`.
+  - Web panel writes its block to `/etc/caddy/conf.d/webpanel.conf`.
+  - Normal-Sub writes its block to `/etc/caddy/conf.d/normalsub.conf`.
+  - Each subsystem installs/removes only its own drop-in; the shared Caddy instance
+    is reloaded (not restarted) when a drop-in changes.
+  - `upgrade.sh` migrates existing installs automatically: strips global blocks from
+    the old per-service Caddyfiles, creates the drop-ins, writes the `caddy.service`
+    override, and cleans up the old unit files.
+
 # v1.0.20
 
 ## Features

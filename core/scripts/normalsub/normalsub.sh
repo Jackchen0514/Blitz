@@ -2,7 +2,9 @@
 source /etc/hysteria/core/scripts/utils.sh
 define_colors
 
-CADDY_CONFIG_FILE_NORMALSUB="/etc/hysteria/core/scripts/normalsub/Caddyfile.normalsub"
+CADDY_DROP_IN_DIR="/etc/caddy/conf.d"
+CADDY_CONFIG_FILE_NORMALSUB="$CADDY_DROP_IN_DIR/normalsub.conf"
+CADDY_MASTER_FILE="/etc/caddy/Caddyfile"
 NORMALSUB_ENV_FILE="/etc/hysteria/core/scripts/normalsub/.env"
 DEFAULT_AIOHTTP_LISTEN_ADDRESS="127.0.0.1"
 DEFAULT_AIOHTTP_LISTEN_PORT="28261"
@@ -10,13 +12,6 @@ DEFAULT_AIOHTTP_LISTEN_PORT="28261"
 install_caddy_if_needed() {
     if command -v caddy &> /dev/null; then
         echo -e "${green}Caddy is already installed.${NC}"
-        if systemctl list-units --full -all | grep -q 'caddy.service'; then
-            if systemctl is-active --quiet caddy.service; then
-                echo -e "${yellow}Stopping and disabling default caddy.service...${NC}"
-                systemctl stop caddy > /dev/null 2>&1
-                systemctl disable caddy > /dev/null 2>&1
-            fi
-        fi
         return 0
     fi
 
@@ -35,8 +30,6 @@ install_caddy_if_needed() {
         echo -e "${red}Error: Failed to install Caddy. ${NC}"
         exit 1
     fi
-    systemctl stop caddy > /dev/null 2>&1
-    systemctl disable caddy > /dev/null 2>&1
     echo -e "${green}Caddy installed successfully. ${NC}"
 }
 
@@ -63,16 +56,19 @@ update_caddy_file_normalsub() {
     local aiohttp_address=$4
     local aiohttp_port=$5
 
-    cat <<EOL > "$CADDY_CONFIG_FILE_NORMALSUB"
-# Global configuration
-{
-    admin off
-    auto_https disable_redirects
-}
+    mkdir -p "$CADDY_DROP_IN_DIR"
 
+    # Use an explicit cert if one was issued via DNS-01; otherwise Caddy auto-HTTPS handles it.
+    local tls_line=""
+    if [[ -f "/etc/caddy/ssl/$domain/fullchain.pem" && -f "/etc/caddy/ssl/$domain/key.pem" ]]; then
+        tls_line="    tls /etc/caddy/ssl/$domain/fullchain.pem /etc/caddy/ssl/$domain/key.pem"
+    fi
+
+    cat <<EOL > "$CADDY_CONFIG_FILE_NORMALSUB"
 $domain:$external_port {
+$tls_line
     encode gzip zstd
-    
+
     route /$subpath_val/* {
         reverse_proxy $aiohttp_address:$aiohttp_port {
             header_up X-Real-IP {remote_host}
@@ -109,16 +105,30 @@ WantedBy=multi-user.target
 EOL
 }
 
-create_caddy_normalsub_service_file() {
-    cat <<EOL > /etc/systemd/system/hysteria-caddy-normalsub.service
+ensure_caddy_service() {
+    mkdir -p "$CADDY_DROP_IN_DIR"
+
+    if [ ! -f "$CADDY_MASTER_FILE" ]; then
+        cat <<'EOL' > "$CADDY_MASTER_FILE"
+{
+    admin off
+    auto_https disable_redirects
+}
+
+import /etc/caddy/conf.d/*.conf
+EOL
+    fi
+
+    if [ ! -f /etc/systemd/system/caddy.service ]; then
+        cat <<EOL > /etc/systemd/system/caddy.service
 [Unit]
-Description=Caddy for Hysteria Normalsub
+Description=Caddy
 After=network.target
 
 [Service]
-WorkingDirectory=/etc/hysteria/core/scripts/normalsub
-ExecStart=/usr/bin/caddy run --environ --config $CADDY_CONFIG_FILE_NORMALSUB
-ExecReload=/usr/bin/caddy reload --config $CADDY_CONFIG_FILE_NORMALSUB --force
+WorkingDirectory=/etc/caddy
+ExecStart=/usr/bin/caddy run --environ --config $CADDY_MASTER_FILE
+ExecReload=/usr/bin/caddy reload --config $CADDY_MASTER_FILE --force
 TimeoutStopSec=5s
 LimitNOFILE=1048576
 PrivateTmp=true
@@ -128,6 +138,15 @@ Group=root
 [Install]
 WantedBy=multi-user.target
 EOL
+        systemctl daemon-reload
+    fi
+
+    if systemctl is-active --quiet caddy.service; then
+        systemctl reload caddy.service 2>/dev/null || systemctl restart caddy.service
+    else
+        systemctl enable caddy.service > /dev/null 2>&1
+        systemctl start caddy.service
+    fi
 }
 
 start_service() {
@@ -140,28 +159,25 @@ start_service() {
     local aiohttp_listen_port="$DEFAULT_AIOHTTP_LISTEN_PORT"
 
     update_env_file "$domain" "$external_port" "$aiohttp_listen_address" "$aiohttp_listen_port"
-    source "$NORMALSUB_ENV_FILE" 
+    source "$NORMALSUB_ENV_FILE"
 
     update_caddy_file_normalsub "$HYSTERIA_DOMAIN" "$HYSTERIA_PORT" "$SUBPATH" "$AIOHTTP_LISTEN_ADDRESS" "$AIOHTTP_LISTEN_PORT"
-    
+
     create_normalsub_python_service_file
-    create_caddy_normalsub_service_file
 
     systemctl daemon-reload
-    
     systemctl enable hysteria-normal-sub.service > /dev/null 2>&1
     systemctl start hysteria-normal-sub.service
-    
-    systemctl enable hysteria-caddy-normalsub.service > /dev/null 2>&1
-    systemctl start hysteria-caddy-normalsub.service
 
-    if systemctl is-active --quiet hysteria-normal-sub.service && systemctl is-active --quiet hysteria-caddy-normalsub.service; then
+    ensure_caddy_service
+
+    if systemctl is-active --quiet hysteria-normal-sub.service && systemctl is-active --quiet caddy.service; then
         echo -e "${green}Normalsub service setup completed.${NC}"
         echo -e "${green}Access base URL: https://$HYSTERIA_DOMAIN:$HYSTERIA_PORT/$SUBPATH/{username}${NC}"
     else
         echo -e "${red}Normalsub setup completed, but one or more services failed to start.${NC}"
         systemctl status hysteria-normal-sub.service --no-pager
-        systemctl status hysteria-caddy-normalsub.service --no-pager
+        systemctl status caddy.service --no-pager
     fi
 }
 
@@ -169,18 +185,30 @@ stop_service() {
     echo -e "${yellow}Stopping Hysteria Normalsub Python service...${NC}"
     systemctl stop hysteria-normal-sub.service > /dev/null 2>&1
     systemctl disable hysteria-normal-sub.service > /dev/null 2>&1
-    echo -e "${yellow}Stopping Caddy service for Normalsub...${NC}"
-    systemctl stop hysteria-caddy-normalsub.service > /dev/null 2>&1
-    systemctl disable hysteria-caddy-normalsub.service > /dev/null 2>&1
-    
-    systemctl daemon-reload > /dev/null 2>&1
 
     rm -f "$NORMALSUB_ENV_FILE"
     rm -f "$CADDY_CONFIG_FILE_NORMALSUB"
     rm -f /etc/systemd/system/hysteria-normal-sub.service
-    rm -f /etc/systemd/system/hysteria-caddy-normalsub.service
-    systemctl daemon-reload > /dev/null 2>&1
 
+    # Only stop the shared Caddy if webpanel isn't using it
+    if compgen -G "${CADDY_DROP_IN_DIR}/*.conf" > /dev/null 2>&1; then
+        echo -e "${yellow}Reloading Caddy (other services still active)...${NC}"
+        systemctl reload caddy.service 2>/dev/null || systemctl restart caddy.service
+    else
+        echo -e "${yellow}Stopping Caddy...${NC}"
+        systemctl disable caddy.service > /dev/null 2>&1
+        systemctl stop caddy.service > /dev/null 2>&1
+        rm -f "$CADDY_MASTER_FILE"
+    fi
+
+    # Clean up legacy service if present (pre-merge installs)
+    if [ -f /etc/systemd/system/hysteria-caddy-normalsub.service ]; then
+        systemctl stop hysteria-caddy-normalsub.service > /dev/null 2>&1
+        systemctl disable hysteria-caddy-normalsub.service > /dev/null 2>&1
+        rm -f /etc/systemd/system/hysteria-caddy-normalsub.service
+    fi
+
+    systemctl daemon-reload > /dev/null 2>&1
     echo -e "${green}Normalsub services stopped and disabled. Configuration files removed.${NC}"
 }
 
@@ -197,7 +225,7 @@ edit_subpath() {
         exit 1
     fi
 
-    if ! systemctl is-active --quiet hysteria-normal-sub.service || ! systemctl is-active --quiet hysteria-caddy-normalsub.service; then
+    if ! systemctl is-active --quiet hysteria-normal-sub.service || ! systemctl is-active --quiet caddy.service; then
         echo -e "${red}Error: One or more services are not running. Please start the services first.${NC}"
         exit 1
     fi
@@ -215,21 +243,21 @@ edit_subpath() {
     systemctl restart hysteria-normal-sub.service
 
     echo -e "${yellow}Reloading Caddy configuration...${NC}"
-    if systemctl reload hysteria-caddy-normalsub.service 2>/dev/null; then
+    if systemctl reload caddy.service 2>/dev/null; then
         echo -e "${green}Caddy configuration reloaded successfully.${NC}"
     else
         echo -e "${yellow}Reload failed, restarting Caddy service...${NC}"
-        systemctl restart hysteria-caddy-normalsub.service
+        systemctl restart caddy.service
     fi
 
-    if systemctl is-active --quiet hysteria-normal-sub.service && systemctl is-active --quiet hysteria-caddy-normalsub.service; then
+    if systemctl is-active --quiet hysteria-normal-sub.service && systemctl is-active --quiet caddy.service; then
         echo -e "${green}Services updated successfully.${NC}"
         echo -e "${green}New access base URL: https://$HYSTERIA_DOMAIN:$HYSTERIA_PORT/$new_path/{username}${NC}"
         echo -e "${cyan}Old subpath '$old_subpath' is no longer accessible.${NC}"
     else
         echo -e "${red}Error: One or more services failed to restart/reload. Please check logs.${NC}"
         systemctl status hysteria-normal-sub.service --no-pager
-        systemctl status hysteria-caddy-normalsub.service --no-pager
+        systemctl status caddy.service --no-pager
     fi
 }
 
@@ -250,6 +278,12 @@ case "$1" in
             exit 1
         fi
         edit_subpath "$2"
+        ;;
+    updatecaddy)
+        if [ -f "$NORMALSUB_ENV_FILE" ]; then
+            source "$NORMALSUB_ENV_FILE"
+            update_caddy_file_normalsub "$HYSTERIA_DOMAIN" "$HYSTERIA_PORT" "$SUBPATH" "$AIOHTTP_LISTEN_ADDRESS" "$AIOHTTP_LISTEN_PORT"
+        fi
         ;;
     *)
         echo -e "${red}Usage: $0 {start <EXTERNAL_DOMAIN> <EXTERNAL_PORT> | stop | edit_subpath <NEW_SUBPATH>}${NC}"

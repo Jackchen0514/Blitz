@@ -139,6 +139,69 @@ migrate_normalsub_path() {
 }
 
 # ========== New Function to Migrate Data ==========
+migrate_caddy_services() {
+    local drop_in_dir="/etc/caddy/conf.d"
+    local master_cf="/etc/caddy/Caddyfile"
+    local old_wp_cf="$HYSTERIA_INSTALL_DIR/core/scripts/webpanel/Caddyfile"
+    local old_ns_cf="$HYSTERIA_INSTALL_DIR/core/scripts/normalsub/Caddyfile.normalsub"
+    local new_wp_cf="$drop_in_dir/webpanel.conf"
+    local new_ns_cf="$drop_in_dir/normalsub.conf"
+
+    info "Setting up unified caddy.service configuration..."
+    mkdir -p "$drop_in_dir"
+
+    cat > "$master_cf" << 'EOF'
+{
+    admin off
+    auto_https disable_redirects
+}
+
+import /etc/caddy/conf.d/*.conf
+EOF
+
+    # Migrate webpanel config: strip global block from old Caddyfile if new one not yet present
+    if [[ -f "$old_wp_cf" && ! -f "$new_wp_cf" ]]; then
+        sed '/^# Global configuration/d; /^{$/,/^}$/d' "$old_wp_cf" > "$new_wp_cf"
+        info "Migrated webpanel Caddy config → $new_wp_cf"
+    fi
+
+    # Migrate normalsub config: strip global block from old Caddyfile.normalsub if new one not yet present
+    if [[ -f "$old_ns_cf" && ! -f "$new_ns_cf" ]]; then
+        sed '/^# Global configuration/d; /^{$/,/^}$/d' "$old_ns_cf" > "$new_ns_cf"
+        info "Migrated normalsub Caddy config → $new_ns_cf"
+    fi
+
+    # Write caddy.service override (takes precedence over any package-installed unit)
+    cat > /etc/systemd/system/caddy.service << 'EOF'
+[Unit]
+Description=Caddy
+After=network.target
+
+[Service]
+WorkingDirectory=/etc/caddy
+ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+PrivateTmp=true
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Stop and remove old separate service files
+    for old_svc in hysteria-caddy.service hysteria-caddy-normalsub.service; do
+        systemctl stop "$old_svc" 2>/dev/null || true
+        systemctl disable "$old_svc" 2>/dev/null || true
+        rm -f "/etc/systemd/system/$old_svc"
+    done
+
+    systemctl daemon-reload
+    success "Caddy services merged into caddy.service."
+}
+
 migrate_json_to_mongo() {
     info "Checking for user data migration..."
     if [[ -f "$HYSTERIA_INSTALL_DIR/users.json" ]]; then
@@ -195,14 +258,15 @@ download_and_extract_latest_release() {
 # ========== Capture Active Services ==========
 declare -a ACTIVE_SERVICES_BEFORE_UPGRADE=()
 ALL_SERVICES=(
-    hysteria-caddy.service
+    caddy.service
+    hysteria-caddy.service           # legacy pre-merge
+    hysteria-caddy-normalsub.service # legacy pre-merge
     hysteria-conn-limit.service
     hysteria-server.service
     hysteria-auth.service
     hysteria-scheduler.service
     hysteria-telegram-bot.service
     hysteria-normal-sub.service
-    hysteria-caddy-normalsub.service
     hysteria-webpanel.service
     hysteria-ip-limit.service
 )
@@ -245,6 +309,9 @@ FILES=(
     "$HYSTERIA_INSTALL_DIR/core/scripts/normalsub/Caddyfile.normalsub"
     "$HYSTERIA_INSTALL_DIR/core/scripts/webpanel/.env"
     "$HYSTERIA_INSTALL_DIR/core/scripts/webpanel/Caddyfile"
+    "/etc/caddy/conf.d/webpanel.conf"
+    "/etc/caddy/conf.d/normalsub.conf"
+    "/etc/caddy/Caddyfile"
 )
 
 info "Backing up configuration and data files to: $TEMP_DIR"
@@ -317,6 +384,9 @@ if [[ -f "$HYSTERIA_INSTALL_DIR/.configs.env" ]] && ! grep -q "^MAX_CONNECTIONS=
     info "Added default MAX_CONNECTIONS=2 to .configs.env"
 fi
 
+# ========== Caddy Services Migration ==========
+migrate_caddy_services
+
 # ========== Data Migration ==========
 migrate_json_to_mongo
 
@@ -343,10 +413,17 @@ info "Reloading systemd daemon..."
 systemctl daemon-reload
 
 info "Restarting services that were active before the upgrade..."
+caddy_needed=false
 if [ ${#ACTIVE_SERVICES_BEFORE_UPGRADE[@]} -eq 0 ]; then
     warn "No relevant services were active before the upgrade. Skipping restart."
 else
     for SERVICE in "${ACTIVE_SERVICES_BEFORE_UPGRADE[@]}"; do
+        # Old caddy service names are replaced by caddy.service after migration
+        if [[ "$SERVICE" == "hysteria-caddy.service" || "$SERVICE" == "hysteria-caddy-normalsub.service" ]]; then
+            caddy_needed=true
+            info "Service '$SERVICE' merged into caddy.service — will start after restart loop."
+            continue
+        fi
         info "Attempting to restart $SERVICE..."
         systemctl enable "$SERVICE" &>/dev/null || warn "Could not enable $SERVICE. It might not exist."
         systemctl restart "$SERVICE"
@@ -359,6 +436,24 @@ else
             journalctl -u "$SERVICE" -n 5 --no-pager
         fi
     done
+fi
+
+# Start caddy.service if either old caddy service was active, or if it was already active
+if [[ "$caddy_needed" == true ]] || [[ " ${ACTIVE_SERVICES_BEFORE_UPGRADE[*]} " =~ " caddy.service " ]]; then
+    if compgen -G "/etc/caddy/conf.d/*.conf" > /dev/null 2>&1; then
+        info "Starting caddy.service (unified Caddy)..."
+        systemctl enable caddy.service &>/dev/null || true
+        systemctl restart caddy.service
+        sleep 2
+        if systemctl is-active --quiet caddy.service; then
+            success "caddy.service started successfully."
+        else
+            warn "caddy.service failed to start."
+            journalctl -u caddy.service -n 5 --no-pager
+        fi
+    else
+        warn "No caddy drop-in configs found in /etc/caddy/conf.d/ — skipping caddy.service start."
+    fi
 fi
 
 # ========== Final Check ==========
