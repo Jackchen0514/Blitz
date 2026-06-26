@@ -38,11 +38,11 @@ def issue_cert(domain, method, cred1="", cred2=""):
         cmd = f"{ACME_SH} --issue -d {domain} --standalone --server letsencrypt"
     elif method == "dns01-cf":
         env["CF_Token"] = cred1
-        cmd = f"{ACME_SH} --issue --dns dns_cf -d {domain} --server letsencrypt"
+        cmd = f"{ACME_SH} --issue --dns dns_cf -d {domain} --server letsencrypt --dnssleep 30"
     elif method == "dns01-cloudns":
         env["CLOUDNS_AUTH_ID"] = cred1
         env["CLOUDNS_AUTH_PASSWORD"] = cred2
-        cmd = f"{ACME_SH} --issue --dns dns_cloudns -d {domain} --server letsencrypt"
+        cmd = f"{ACME_SH} --issue --dns dns_cloudns -d {domain} --server letsencrypt --dnssleep 30"
     else:
         print(f"Unknown TLS method: {method}")
         return False

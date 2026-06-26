@@ -96,7 +96,7 @@ cmd_dns01_cf() {
     echo -e "${yellow}Issuing certificate for ${domain} via DNS-01 (Cloudflare)...${NC}"
     export CF_Token="$cf_token"
 
-    "$ACME_SH" --issue --dns dns_cf -d "$domain" --server letsencrypt
+    "$ACME_SH" --issue --dns dns_cf -d "$domain" --server letsencrypt --dnssleep 30
     local acme_exit=$?
     # exit code 2 = already valid, acme.sh skipped — treat as success
     if [[ $acme_exit -ne 0 && $acme_exit -ne 2 ]]; then
@@ -126,7 +126,7 @@ cmd_dns01_cloudns() {
     export CLOUDNS_AUTH_ID="$auth_id"
     export CLOUDNS_AUTH_PASSWORD="$auth_password"
 
-    "$ACME_SH" --issue --dns dns_cloudns -d "$domain" --server letsencrypt
+    "$ACME_SH" --issue --dns dns_cloudns -d "$domain" --server letsencrypt --dnssleep 30
     local acme_exit=$?
     if [[ $acme_exit -ne 0 && $acme_exit -ne 2 ]]; then
         echo -e "${red}Certificate issuance failed.${NC}"
