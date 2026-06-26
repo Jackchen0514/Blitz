@@ -1,3 +1,16 @@
+# v1.0.24
+
+## Fixes
+
+- **TLS: acme.sh exit code 2 (cert already valid) no longer aborts installation**
+
+  When a Let's Encrypt certificate for the domain already exists and is not yet
+  due for renewal, acme.sh exits with code 2 (RENEW_SKIP) instead of 0. The
+  install, change-SNI, and TLS Manager flows were treating any non-zero exit as
+  a failure. Fixed in `install.sh`, `change_sni.py`, and `tls_manager.sh` —
+  code 2 is now accepted as success and `--install-cert` proceeds to deploy the
+  existing cert.
+
 # v1.0.23
 
 ## Features
