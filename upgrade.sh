@@ -325,6 +325,12 @@ for FILE in "${FILES[@]}"; do
     fi
 done
 
+# Back up SSL cert directory (Let's Encrypt certs issued for Hysteria)
+if [[ -d "$HYSTERIA_INSTALL_DIR/ssl" ]]; then
+    cp -rp "$HYSTERIA_INSTALL_DIR/ssl" "$TEMP_DIR$HYSTERIA_INSTALL_DIR/ssl"
+    success "Backed up: $HYSTERIA_INSTALL_DIR/ssl/"
+fi
+
 # ========== Download and Replace Installation ==========
 download_and_extract_latest_release
 
@@ -339,6 +345,17 @@ for FILE in "${FILES[@]}"; do
         warn "Missing backup file, skipping restore: $BACKUP"
     fi
 done
+
+# Restore SSL cert directory
+if [[ -d "$TEMP_DIR$HYSTERIA_INSTALL_DIR/ssl" ]]; then
+    cp -rp "$TEMP_DIR$HYSTERIA_INSTALL_DIR/ssl" "$HYSTERIA_INSTALL_DIR/ssl"
+    # Re-apply hysteria user ownership on cert files
+    if id -u hysteria >/dev/null 2>&1; then
+        chown -R hysteria:hysteria "$HYSTERIA_INSTALL_DIR/ssl" 2>/dev/null || true
+        find "$HYSTERIA_INSTALL_DIR/ssl" -name "*.pem" -exec chmod 640 {} \;
+    fi
+    success "Restored: $HYSTERIA_INSTALL_DIR/ssl/"
+fi
 
 # ========== Update Configuration ==========
 info "Updating Hysteria configuration for HTTP authentication..."
@@ -356,6 +373,15 @@ if [[ -f "$HYSTERIA_INSTALL_DIR/config.json" ]]; then
     success "config.json updated (auth URL: ${auth_url})."
 else
     warn "config.json not found after restore. Skipping auth update."
+fi
+
+# Migrate resolver.type: tls → udp (port 853 is blocked on many restricted networks)
+if [[ -f "$HYSTERIA_INSTALL_DIR/config.json" ]]; then
+    current_resolver=$(jq -r '.resolver.type // ""' "$HYSTERIA_INSTALL_DIR/config.json")
+    if [[ "$current_resolver" == "tls" ]]; then
+        jq '.resolver.type = "udp"' "$HYSTERIA_INSTALL_DIR/config.json" > "$HYSTERIA_INSTALL_DIR/config.json.tmp" && mv "$HYSTERIA_INSTALL_DIR/config.json.tmp" "$HYSTERIA_INSTALL_DIR/config.json"
+        info "resolver.type migrated from 'tls' to 'udp' (fixes DNS i/o timeout on restricted networks)."
+    fi
 fi
 
 # ========== Permissions ==========
