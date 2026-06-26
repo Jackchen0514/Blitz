@@ -13,12 +13,13 @@ SERVICES = [
     "hysteria-auth.service",
     "hysteria-webpanel.service",
     "caddy.service",
-    "hysteria-caddy.service",          # legacy pre-merge
-    "hysteria-caddy-normalsub.service", # legacy pre-merge
+    "hysteria-caddy.service",           # legacy pre-merge
+    "hysteria-caddy-normalsub.service",  # legacy pre-merge
     "hysteria-telegram-bot.service",
     "hysteria-normal-sub.service",
     "hysteria-singbox.service",
     "hysteria-ip-limit.service",
+    "hysteria-conn-limit.service",
     "hysteria-scheduler.service",
 ]
 
@@ -85,20 +86,38 @@ def uninstall_hysteria():
     print("\nStep 6: Removing all Hysteria panel files...")
     run_command(["rm", "-rf", "/etc/hysteria"], "Failed to remove the /etc/hysteria folder.")
 
-    print("\nStep 7: Deleting the 'hysteria' user...")
+    print("\nStep 7: Removing Caddy configuration and certificates...")
+    run_command(["rm", "-rf", "/etc/caddy"], "Failed to remove /etc/caddy.")
+
+    print("\nStep 8: Deleting the 'hysteria' user...")
     run_command(["userdel", "-r", "hysteria"], "Failed to delete the 'hysteria' user.")
 
-    print("\nStep 8: Removing cron jobs...")
+    print("\nStep 9: Removing acme.sh and issued certificates...")
+    acmesh_home = os.path.expanduser("~/.acme.sh")
+    if os.path.isdir(acmesh_home):
+        acmesh_bin = os.path.join(acmesh_home, "acme.sh")
+        if os.path.isfile(acmesh_bin):
+            run_command(["bash", acmesh_bin, "--uninstall"], "Failed to uninstall acme.sh cleanly.")
+        run_command(["rm", "-rf", acmesh_home], "Failed to remove ~/.acme.sh directory.")
+        print("acme.sh removed.")
+    else:
+        print("acme.sh not found, skipping.")
+
+    print("\nStep 10: Removing cron jobs...")
     try:
         crontab_list_proc = subprocess.run(["crontab", "-l"], capture_output=True, text=True, check=False)
-        if "hysteria" in crontab_list_proc.stdout:
-            new_crontab = "\n".join(line for line in crontab_list_proc.stdout.splitlines() if "hysteria" not in line)
-            subprocess.run(["crontab", "-"], input=new_crontab.encode(), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print("Hysteria cron jobs removed.")
+        if "hysteria" in crontab_list_proc.stdout or "acme.sh" in crontab_list_proc.stdout:
+            new_crontab = "\n".join(
+                line for line in crontab_list_proc.stdout.splitlines()
+                if "hysteria" not in line and "acme.sh" not in line
+            )
+            subprocess.run(["crontab", "-"], input=new_crontab.encode(), check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("Cron jobs removed.")
     except (FileNotFoundError, subprocess.CalledProcessError):
         print("Warning: Could not access or modify crontab.")
 
-    print("\nStep 9: Removing 'hys2' alias from .bashrc...")
+    print("\nStep 11: Removing 'hys2' alias from .bashrc...")
     bashrc_path = os.path.expanduser("~/.bashrc")
     if os.path.exists(bashrc_path):
         try:
@@ -109,7 +128,7 @@ def uninstall_hysteria():
             print("Alias 'hys2' removed from .bashrc.")
         except IOError:
             print(f"Warning: Could not access or modify {bashrc_path}.")
-    
+
     print("\nUninstallation of Hysteria2 panel is complete.")
     print("It is recommended to reboot the server to ensure all changes take effect.")
     

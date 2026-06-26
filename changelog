@@ -1,3 +1,15 @@
+# v1.0.25
+
+## Fixes
+
+- **Uninstall: complete cleanup of all components**
+
+  - Added `hysteria-conn-limit.service` to the service stop/disable/remove list.
+  - Step 7: remove `/etc/caddy/` (Caddyfile, conf.d drop-ins, SSL certs).
+  - Step 9: uninstall acme.sh (`acme.sh --uninstall`) and delete `~/.acme.sh/`.
+  - Cron job cleanup now also removes acme.sh renewal entries (not just hysteria
+    entries).
+
 # v1.0.24
 
 ## Fixes
