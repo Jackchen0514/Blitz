@@ -702,6 +702,13 @@ normalsub_handler() {
                         fi
                     done
 
+                    _tls_method_prompt
+                    if [[ "$TLS_METHOD" == "dns01-cf" ]]; then
+                        bash "$TLS_MANAGER_SCRIPT" issue dns01 cloudflare "$domain" "$TLS_CRED1"
+                    elif [[ "$TLS_METHOD" == "dns01-cloudns" ]]; then
+                        bash "$TLS_MANAGER_SCRIPT" issue dns01 cloudns "$domain" "$TLS_CRED1" "$TLS_CRED2"
+                    fi
+
                     python3 $CLI_PATH normal-sub -a start -d "$domain" -p "$port"
                 fi
                 ;;
@@ -812,6 +819,13 @@ webpanel_handler() {
                         fi
                         echo "Passwords did NOT match. Please try again."
                     done
+
+                    _tls_method_prompt
+                    if [[ "$TLS_METHOD" == "dns01-cf" ]]; then
+                        bash "$TLS_MANAGER_SCRIPT" issue dns01 cloudflare "$domain" "$TLS_CRED1"
+                    elif [[ "$TLS_METHOD" == "dns01-cloudns" ]]; then
+                        bash "$TLS_MANAGER_SCRIPT" issue dns01 cloudns "$domain" "$TLS_CRED1" "$TLS_CRED2"
+                    fi
 
                     python3 $CLI_PATH webpanel -a start -d "$domain" -p "$port" -au "$admin_username" -ap "$admin_password"
                 fi

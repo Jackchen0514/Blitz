@@ -1,3 +1,19 @@
+# v1.0.29
+
+## Features
+
+- **WebPanel and Normal-Sub: TLS method selection on startup**
+
+  Starting the WebPanel or Normal-Sub service now prompts for the TLS
+  certificate method (same as Hysteria install):
+  - **HTTP-01** (default): Caddy handles it automatically.
+  - **DNS-01 via Cloudflare**: issues cert via TLS Manager before starting Caddy.
+  - **DNS-01 via ClouDNS**: issues cert via TLS Manager before starting Caddy.
+
+  For HTTP-01, no extra steps are taken — Caddy auto-HTTPS works as before.
+  For DNS-01, `tls_manager.sh` issues and deploys the cert to
+  `/etc/caddy/ssl/<domain>/` first, then Caddy picks it up automatically.
+
 # v1.0.28
 
 ## Fixes
