@@ -1,3 +1,15 @@
+# v1.0.28
+
+## Fixes
+
+- **TLS: cert files now owned by `hysteria` user after deployment**
+
+  `hysteria-server` runs as user `hysteria`, but the deployed certificate files
+  were created as `root:root 640`, causing the server to fail on startup with
+  "failed to load server config: tls.cert: open ... permission denied".
+  Added `chown hysteria:hysteria` after `acme.sh --install-cert` in both
+  `install.sh` and `change_sni.py`.
+
 # v1.0.27
 
 ## Fixes
