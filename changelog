@@ -1,3 +1,16 @@
+# v1.0.26
+
+## Fixes
+
+- **TLS DNS-01: skip unreachable public DNS checks (`--dnssleep 30`)**
+
+  Servers behind restricted networks cannot reach the public DNS resolvers
+  that acme.sh uses to verify TXT record propagation, causing curl error 28
+  (timeout). Added `--dnssleep 30` to all DNS-01 issue commands in
+  `install.sh`, `change_sni.py`, and `tls_manager.sh` — acme.sh now waits
+  30 seconds then goes straight to Let's Encrypt validation without checking
+  public DNS reachability.
+
 # v1.0.25
 
 ## Fixes
