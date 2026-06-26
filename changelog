@@ -1,3 +1,25 @@
+# v1.0.22
+
+## Features
+
+- **TLS Certificate Manager** (Advance Menu → [20]):
+
+  Supports two modes for HTTPS certificate issuance, selectable per domain:
+
+  - **HTTP-01** (default): Caddy handles it automatically via Let's Encrypt — no
+    extra setup needed as long as port 80 is reachable.
+  - **DNS-01 via Cloudflare**: enter Cloudflare API Token (Zone:DNS:Edit) and
+    acme.sh issues the cert without needing port 80.
+  - **DNS-01 via ClouDNS**: enter `CLOUDNS_AUTH_ID` and `CLOUDNS_AUTH_PASSWORD`
+    and acme.sh issues the cert.
+
+  Certificates are stored in `/etc/caddy/ssl/<domain>/` and auto-renewed by
+  acme.sh's cron hook, which reloads `caddy.service` on renewal. Both the web
+  panel and Normal-Sub Caddyfiles automatically pick up the explicit cert for a
+  domain if one is present; otherwise they fall through to Caddy auto-HTTPS.
+
+  New script: `core/scripts/tls/tls_manager.sh`.
+
 # v1.0.21
 
 ## Refactor

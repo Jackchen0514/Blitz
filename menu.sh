@@ -1347,6 +1347,79 @@ hysteria2_menu() {
     done
 }
 
+tls_handler() {
+    while true; do
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        echo -e "${yellow}                   TLS Certificate Manager                   ${NC}"
+        echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
+        echo -e "${cyan}[1] ${NC}↝ View certificate status"
+        echo -e "${green}[2] ${NC}↝ HTTP-01 (Caddy auto-HTTPS, default)"
+        echo -e "${yellow}[3] ${NC}↝ DNS-01 via Cloudflare"
+        echo -e "${yellow}[4] ${NC}↝ DNS-01 via ClouDNS"
+        echo -e "${red}[5] ${NC}↝ Revoke certificate"
+        echo -e "${red}[0] ${NC}↝ Back"
+        echo -ne "${yellow}➜ Enter your option: ${NC}"
+        read -r option
+
+        case $option in
+            1)
+                bash $TLS_MANAGER_SCRIPT status
+                ;;
+            2)
+                while true; do
+                    read -e -p "Enter domain: " domain
+                    [ -n "$domain" ] && break
+                    echo "Domain cannot be empty."
+                done
+                bash $TLS_MANAGER_SCRIPT issue http01 "$domain"
+                ;;
+            3)
+                while true; do
+                    read -e -p "Enter domain: " domain
+                    [ -n "$domain" ] && break
+                    echo "Domain cannot be empty."
+                done
+                while true; do
+                    read -e -p "Enter Cloudflare API Token (Zone:DNS:Edit permission required): " cf_token
+                    [ -n "$cf_token" ] && break
+                    echo "Token cannot be empty."
+                done
+                bash $TLS_MANAGER_SCRIPT issue dns01 cloudflare "$domain" "$cf_token"
+                ;;
+            4)
+                while true; do
+                    read -e -p "Enter domain: " domain
+                    [ -n "$domain" ] && break
+                    echo "Domain cannot be empty."
+                done
+                while true; do
+                    read -e -p "Enter CLOUDNS_AUTH_ID: " auth_id
+                    [ -n "$auth_id" ] && break
+                    echo "AUTH_ID cannot be empty."
+                done
+                while true; do
+                    read -e -p "Enter CLOUDNS_AUTH_PASSWORD: " auth_password
+                    [ -n "$auth_password" ] && break
+                    echo "Password cannot be empty."
+                done
+                bash $TLS_MANAGER_SCRIPT issue dns01 cloudns "$domain" "$auth_id" "$auth_password"
+                ;;
+            5)
+                while true; do
+                    read -e -p "Enter domain to revoke: " domain
+                    [ -n "$domain" ] && break
+                    echo "Domain cannot be empty."
+                done
+                bash $TLS_MANAGER_SCRIPT revoke "$domain"
+                ;;
+            0) return ;;
+            *) echo "Invalid option. Please try again." ;;
+        esac
+        echo
+        read -rp "Press Enter to continue..."
+    done
+}
+
 display_advance_menu() {
     clear
     echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
@@ -1371,7 +1444,8 @@ display_advance_menu() {
     echo -e "${cyan}[17] ${NC}↝ IP Limiter Menu"
     echo -e "${cyan}[18] ${NC}↝ Connection Limiter Menu"
     echo -e "${cyan}[19] ${NC}↝ Port Hop Config"
-    echo -e "${red}[20] ${NC}↝ Uninstall Hysteria2"
+    echo -e "${cyan}[20] ${NC}↝ TLS Certificate Manager"
+    echo -e "${red}[21] ${NC}↝ Uninstall Hysteria2"
     echo -e "${red}[0] ${NC}↝ Back to Main Menu"
     echo -e "${LPurple}◇──────────────────────────────────────────────────────────────────────◇${NC}"
     echo -ne "${yellow}➜ Enter your option: ${NC}"
@@ -1403,7 +1477,8 @@ advance_menu() {
             17) ip_limit_handler ;;
             18) conn_limit_handler ;;
             19) port_hop_handler ;;
-            20) python3 $CLI_PATH uninstall-hysteria2 ;;
+            20) tls_handler ;;
+            21) python3 $CLI_PATH uninstall-hysteria2 ;;
             0) return ;;
             *) echo "Invalid option. Please try again." ;;
         esac
