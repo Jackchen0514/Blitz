@@ -1,3 +1,18 @@
+# v1.0.31
+
+## Fixes
+
+- **Upgrade: preserve Let's Encrypt SSL certs across upgrade**
+
+  `upgrade.sh` wipes `/etc/hysteria/` before extracting the new release, which
+  also deleted `/etc/hysteria/ssl/<domain>/` — the Let's Encrypt certificates
+  used by `hysteria-server`. After upgrade the server could not start because
+  the cert files referenced in `config.json` no longer existed.
+
+  The backup/restore loop now also copies the entire `ssl/` directory to the
+  temp backup before the wipe and restores it afterwards, re-applying
+  `chown hysteria:hysteria` and `chmod 640` on all `.pem` files.
+
 # v1.0.30
 
 ## Fixes
