@@ -579,7 +579,7 @@ case "$1" in
         show_webpanel_api_token
         ;;
     updatecaddy)
-        update_caddy_file
+        [ -f "$WEBPANEL_ENV_FILE" ] && update_caddy_file
         ;;
     *)
         echo -e "${red}Usage: $0 {start|stop|decoy|stopdecoy|resetcreds|changeexp|changeroot|changedomain|url|api-token} [options]${NC}"
