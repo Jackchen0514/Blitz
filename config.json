@@ -28,7 +28,7 @@
   "speedTest": false,
   "udpIdleTimeout": "20s",
   "resolver": {
-    "type": "tls",
+    "type": "udp",
     "tcp": {
       "addr": "8.8.8.8:53",
       "timeout": "4s"
