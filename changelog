@@ -1,3 +1,25 @@
+# v1.0.23
+
+## Features
+
+- **Hysteria2 server: real TLS certificate, no OBFS by default**
+
+  - Installation now requires a domain name and prompts for the TLS
+    certificate method:
+    - **HTTP-01** (default): acme.sh standalone mode — port 80 must be free.
+    - **DNS-01 via Cloudflare**: requires Cloudflare API Token (Zone:DNS:Edit).
+    - **DNS-01 via ClouDNS**: requires `CLOUDNS_AUTH_ID` and `CLOUDNS_AUTH_PASSWORD`.
+  - Certificates are issued by Let's Encrypt via acme.sh and stored in
+    `/etc/hysteria/ssl/<domain>/`. acme.sh's cron hook auto-renews them and
+    restarts `hysteria-server.service` on renewal.
+  - `config.json`: `obfs` block removed (no OBFS by default — users can
+    still enable it via the OBFS menu). `insecure`/`pinSHA256` removed from
+    the TLS section; `cert`/`key` now point to the Let's Encrypt cert.
+  - Client URIs now default to `insecure=0`. Existing installs that still
+    have `"insecure": true` explicitly in `config.json` are unaffected.
+  - **Change SNI** menu likewise prompts for TLS method and uses acme.sh
+    (replaces the old certbot flow).
+
 # v1.0.22
 
 ## Features

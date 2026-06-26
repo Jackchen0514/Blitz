@@ -173,11 +173,11 @@ def generate_password() -> str:
 # region Hysteria
 
 
-def install_hysteria2(port: int, sni: str):
-    '''
-    Installs Hysteria2 and streams the output of the installation script.
-    '''
-    run_cmd_and_stream(['bash', Command.INSTALL_HYSTERIA2.value, str(port), sni])
+def install_hysteria2(port: int, domain: str, tls_method: str = 'http01',
+                      tls_cred1: str = '', tls_cred2: str = ''):
+    '''Installs Hysteria2 and streams the output of the installation script.'''
+    run_cmd_and_stream(['bash', Command.INSTALL_HYSTERIA2.value,
+                        str(port), domain, tls_method, tls_cred1, tls_cred2])
 
 
 def uninstall_hysteria2():
@@ -222,11 +222,10 @@ def get_hysteria2_sni() -> str | None:
     return env_vars.get('SNI')
 
 
-def change_hysteria2_sni(sni: str):
-    '''
-    Changes the SNI for Hysteria2.
-    '''
-    run_cmd(['python3', Command.CHANGE_SNI_HYSTERIA2.value, sni])
+def change_hysteria2_sni(sni: str, tls_method: str = 'http01',
+                         tls_cred1: str = '', tls_cred2: str = ''):
+    '''Changes the domain/SNI for Hysteria2 and issues a new TLS certificate.'''
+    run_cmd(['python3', Command.CHANGE_SNI_HYSTERIA2.value, sni, tls_method, tls_cred1, tls_cred2])
 
 
 def backup_hysteria2():

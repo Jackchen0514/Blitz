@@ -80,7 +80,7 @@ def process_users(target_usernames: List[str]) -> List[Dict[str, Any]]:
     default_sni = hy2_env.get('SNI', '')
     default_obfs = config.get("obfs", {}).get("salamander", {}).get("password")
     default_pin = tls_config.get("pinSHA256")
-    default_insecure = tls_config.get("insecure", True)
+    default_insecure = tls_config.get("insecure", False)
     
     base_uri_params = {"insecure": "1" if default_insecure else "0", "up": "30mbps", "down": "30mbps"}
     if default_sni: base_uri_params["sni"] = default_sni

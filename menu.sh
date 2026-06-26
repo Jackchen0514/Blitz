@@ -18,6 +18,38 @@ check_services() {
     done
 }
 
+_tls_method_prompt() {
+    echo ""
+    echo "Select TLS certificate method:"
+    echo "  [1] HTTP-01  (Let's Encrypt standalone — port 80 must be free)"
+    echo "  [2] DNS-01   via Cloudflare"
+    echo "  [3] DNS-01   via ClouDNS"
+    local choice
+    read -p "Enter choice [1]: " choice
+    choice=${choice:-1}
+
+    TLS_METHOD=""
+    TLS_CRED1=""
+    TLS_CRED2=""
+
+    case "$choice" in
+        1) TLS_METHOD="http01" ;;
+        2)
+            TLS_METHOD="dns01-cf"
+            read -p "Enter Cloudflare API Token: " TLS_CRED1
+            ;;
+        3)
+            TLS_METHOD="dns01-cloudns"
+            read -p "Enter ClouDNS Auth ID: " TLS_CRED1
+            read -p "Enter ClouDNS Auth Password: " TLS_CRED2
+            ;;
+        *)
+            echo "Invalid choice, defaulting to HTTP-01."
+            TLS_METHOD="http01"
+            ;;
+    esac
+}
+
 hysteria2_install_handler() {
     if systemctl is-active --quiet hysteria-server.service; then
         echo "The hysteria-server.service is currently active."
@@ -25,10 +57,13 @@ hysteria2_install_handler() {
         return
     fi
 
-    while true; do
-        read -p "Enter the SNI (default: bts.com): " sni
-        sni=${sni:-bts.com}
+    local domain=""
+    while [[ -z "$domain" ]]; do
+        read -p "Enter the domain name for the TLS certificate: " domain
+    done
 
+    local port=""
+    while true; do
         read -p "Enter the port number you want to use: " port
         if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
             echo "Invalid port number. Please enter a number between 1 and 65535."
@@ -37,11 +72,16 @@ hysteria2_install_handler() {
         fi
     done
 
+    _tls_method_prompt
 
-    python3 $CLI_PATH install-hysteria2 --port "$port" --sni "$sni"
+    local args=(--port "$port" --domain "$domain" --tls-method "$TLS_METHOD")
+    [[ -n "$TLS_CRED1" ]] && args+=(--tls-cred1 "$TLS_CRED1")
+    [[ -n "$TLS_CRED2" ]] && args+=(--tls-cred2 "$TLS_CRED2")
+
+    python3 $CLI_PATH install-hysteria2 "${args[@]}"
 
     cat <<EOF > /etc/hysteria/.configs.env
-SNI=$sni
+SNI=$domain
 EOF
     python3 $CLI_PATH ip-address
 }
@@ -343,17 +383,23 @@ hysteria2_change_port_handler() {
 }
 
 hysteria2_change_sni_handler() {
+    local sni=""
     while true; do
-        read -p "Enter the new SNI (e.g., example.com): " sni
-
+        read -p "Enter the new domain name (SNI): " sni
         if [[ "$sni" =~ ^[a-zA-Z0-9.]+$ ]]; then
             break
         else
-            echo -e "${red}Error:${NC} SNI can only contain letters, numbers, and dots."
+            echo -e "${red}Error:${NC} Domain can only contain letters, numbers, and dots."
         fi
     done
 
-    python3 $CLI_PATH change-hysteria2-sni --sni "$sni"
+    _tls_method_prompt
+
+    local args=(--sni "$sni" --tls-method "$TLS_METHOD")
+    [[ -n "$TLS_CRED1" ]] && args+=(--tls-cred1 "$TLS_CRED1")
+    [[ -n "$TLS_CRED2" ]] && args+=(--tls-cred2 "$TLS_CRED2")
+
+    python3 $CLI_PATH change-hysteria2-sni "${args[@]}"
 
     if systemctl is-active --quiet hysteria-singbox.service; then
         systemctl restart hysteria-singbox.service

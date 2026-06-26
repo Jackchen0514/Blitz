@@ -173,7 +173,7 @@ def show_uri(args: argparse.Namespace) -> None:
     local_port = config["listen"].split(":")[-1]
     local_sha256 = config.get("tls", {}).get("pinSHA256", "")
     local_obfs_password = config.get("obfs", {}).get("salamander", {}).get("password", "")
-    local_insecure = config.get("tls", {}).get("insecure", True)
+    local_insecure = config.get("tls", {}).get("insecure", False)
     
     ip4, ip6, local_sni = load_hysteria2_ips()
     nodes = load_nodes()

@@ -23,10 +23,15 @@ def cli():
 
 @cli.command('install-hysteria2')
 @click.option('--port', '-p', required=True, help='Port for Hysteria2', type=int)
-@click.option('--sni', '-s', required=False, default='bts.com', help='SNI for Hysteria2 (default: bts.com)', type=str)
-def install_hysteria2(port: int, sni: str):
+@click.option('--domain', '-d', required=True, help='Domain name for TLS certificate', type=str)
+@click.option('--tls-method', required=False, default='http01',
+              type=click.Choice(['http01', 'dns01-cf', 'dns01-cloudns']),
+              help='TLS certificate issuance method')
+@click.option('--tls-cred1', required=False, default='', help='CF Token or ClouDNS Auth ID')
+@click.option('--tls-cred2', required=False, default='', help='ClouDNS Auth Password')
+def install_hysteria2(port: int, domain: str, tls_method: str, tls_cred1: str, tls_cred2: str):
     try:
-        cli_api.install_hysteria2(port, sni)
+        cli_api.install_hysteria2(port, domain, tls_method, tls_cred1, tls_cred2)
     except Exception as e:
         click.echo(f'\nAn error occurred during installation: {e}', err=True)
 
@@ -69,10 +74,15 @@ def change_hysteria2_port(port: int):
 
 
 @cli.command('change-hysteria2-sni')
-@click.option('--sni', '-s', required=True, help='New SNI for Hysteria2', type=str)
-def change_hysteria2_sni(sni: str):
+@click.option('--sni', '-s', required=True, help='New domain/SNI for Hysteria2', type=str)
+@click.option('--tls-method', required=False, default='http01',
+              type=click.Choice(['http01', 'dns01-cf', 'dns01-cloudns']),
+              help='TLS certificate issuance method')
+@click.option('--tls-cred1', required=False, default='', help='CF Token or ClouDNS Auth ID')
+@click.option('--tls-cred2', required=False, default='', help='ClouDNS Auth Password')
+def change_hysteria2_sni(sni: str, tls_method: str, tls_cred1: str, tls_cred2: str):
     try:
-        cli_api.change_hysteria2_sni(sni)
+        cli_api.change_hysteria2_sni(sni, tls_method, tls_cred1, tls_cred2)
         click.echo(f'Hysteria2 SNI changed to {sni} successfully.')
     except Exception as e:
         click.echo(f'{e}', err=True)
