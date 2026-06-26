@@ -96,6 +96,7 @@ cmd_dns01_cf() {
     echo -e "${yellow}Issuing certificate for ${domain} via DNS-01 (Cloudflare)...${NC}"
     export CF_Token="$cf_token"
 
+    python3 /etc/hysteria/core/scripts/tls/cleanup_acme_challenge.py cloudflare "$domain" "$cf_token" 2>/dev/null || true
     "$ACME_SH" --issue --dns dns_cf -d "$domain" --server letsencrypt --dnssleep 30
     local acme_exit=$?
     # exit code 2 = already valid, acme.sh skipped — treat as success
@@ -126,6 +127,7 @@ cmd_dns01_cloudns() {
     export CLOUDNS_AUTH_ID="$auth_id"
     export CLOUDNS_AUTH_PASSWORD="$auth_password"
 
+    python3 /etc/hysteria/core/scripts/tls/cleanup_acme_challenge.py cloudns "$domain" "$auth_id" "$auth_password" 2>/dev/null || true
     "$ACME_SH" --issue --dns dns_cloudns -d "$domain" --server letsencrypt --dnssleep 30
     local acme_exit=$?
     if [[ $acme_exit -ne 0 && $acme_exit -ne 2 ]]; then

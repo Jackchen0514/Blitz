@@ -1,3 +1,19 @@
+# v1.0.27
+
+## Fixes
+
+- **TLS DNS-01: auto-clean stale `_acme-challenge` TXT record before issuing**
+
+  When a previous certificate attempt is interrupted (e.g. DNS timeout), acme.sh
+  leaves a stale `_acme-challenge` TXT record in the DNS provider. On the next
+  attempt acme.sh adds a new record with a different value, but Let's Encrypt
+  sees the old one and fails with "Incorrect TXT record".
+
+  New script `core/scripts/tls/cleanup_acme_challenge.py` calls the ClouDNS or
+  Cloudflare API to delete only the `_acme-challenge.<subdomain>` TXT record for
+  the specific domain being issued, before running `acme.sh --issue`. Called
+  automatically in `install.sh`, `change_sni.py`, and `tls_manager.sh`.
+
 # v1.0.26
 
 ## Fixes

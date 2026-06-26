@@ -36,11 +36,13 @@ issue_hysteria_cert() {
             ;;
         dns01-cf)
             export CF_Token="$cred1"
+            python3 /etc/hysteria/core/scripts/tls/cleanup_acme_challenge.py cloudflare "$domain" "$cred1" 2>/dev/null || true
             "$ACME_SH" --issue --dns dns_cf -d "$domain" --server letsencrypt --dnssleep 30
             ;;
         dns01-cloudns)
             export CLOUDNS_AUTH_ID="$cred1"
             export CLOUDNS_AUTH_PASSWORD="$cred2"
+            python3 /etc/hysteria/core/scripts/tls/cleanup_acme_challenge.py cloudns "$domain" "$cred1" "$cred2" 2>/dev/null || true
             "$ACME_SH" --issue --dns dns_cloudns -d "$domain" --server letsencrypt --dnssleep 30
             ;;
         *)
