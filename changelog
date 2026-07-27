@@ -1,3 +1,28 @@
+# v1.0.34
+
+## Features / Fixes
+
+- **Connection limiter: auto-detect log source (file vs systemd journal)**
+
+  When a `log.conf` drop-in redirects `hysteria-server` stdout to a file,
+  `journalctl`-based monitoring never receives `client connected` / `client
+  disconnected` events — the disconnect counter never decremented, leaving
+  counts permanently inflated. The connection limiter now queries
+  `systemctl show --property=StandardOutput` on startup and automatically
+  switches to `tail -F <file>` and file-based history replay when a log
+  file is detected. Falls back to `journalctl` when no file override exists.
+
+- **Hysteria-server logs: redirect to file with logrotate**
+
+  `install.sh` now creates:
+  - `/etc/systemd/system/hysteria-server.service.d/log.conf` — redirects
+    stdout/stderr to `/var/log/hysteria-server.log`
+  - `/etc/logrotate.d/hysteria-server` — daily/50 MB rotation, 7 copies
+    kept, gzip-compressed, `copytruncate` (no service restart needed)
+
+  `upgrade.sh` applies the same config on upgrade (log.conf only if not
+  already present; logrotate config always updated).
+
 # v1.0.33
 
 ## Fixes
