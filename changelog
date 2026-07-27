@@ -1,3 +1,34 @@
+# v1.0.33
+
+## Fixes
+
+- **Connection limiter: fix count accumulation on iOS network switches (WiFi↔cellular)**
+
+  Two bugs caused the per-user connection count to accumulate until it hit
+  MAX and permanently blocked all auth requests, even for a single device:
+
+  1. **Journal-based counter drift on network switches**: when iOS switches
+     networks, the new QUIC connection authenticates before the old one's
+     20-second idle timeout fires. The old "client disconnected" journal event
+     hadn't arrived yet, so count incremented without a matching decrement.
+     Over repeated switches the count hit the limit and stayed there.
+
+  2. **Stale counts after hysteria-server restart**: when hysteria-server
+     restarts it terminates all connections without writing "client disconnected"
+     events, leaving orphaned connect events in the journal. `_init_counts()`
+     was replaying the last 4 hours, accumulating these stale events.
+
+  Fixes:
+  - Auth handler now queries the hysteria2 traffic API (port 25413) for the
+    real number of live QUIC connections instead of maintaining its own
+    journal-based counter. The API reflects actual server-side state and is
+    unaffected by network switches or missed disconnect events.
+  - `_init_counts()` now replays journal only since hysteria-server's last
+    start time (via `systemctl show --property=ActiveEnterTimestamp`) so
+    pre-restart connections are never counted.
+  - The internal counter is kept as a fallback for when the traffic API is
+    temporarily unreachable.
+
 # v1.0.32
 
 ## Fixes
