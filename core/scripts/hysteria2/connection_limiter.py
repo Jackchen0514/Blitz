@@ -23,6 +23,7 @@ import os
 import re
 import sys
 from collections import defaultdict
+from datetime import datetime, timezone
 from threading import Lock
 
 import aiohttp
@@ -92,6 +93,9 @@ _LOG_RE = re.compile(
     r'(?P<event>client connected|client disconnected)'
     r'.*?"id":\s*"(?P<username>[^"]+)"'
 )
+_TS_RE = re.compile(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})')
+
+_log_file: str = ''  # set during startup; empty = use systemd journal
 
 
 def _process_disconnect(line: str):
@@ -125,8 +129,13 @@ def _process_history_line(line: str):
                 del _counts[username]
 
 
-async def _get_server_start_time() -> str:
-    """Return the last start timestamp of hysteria-server as a journalctl --since string."""
+async def _get_server_start_time() -> tuple[str, datetime | None]:
+    """
+    Return the last start time of hysteria-server as:
+      - a journalctl --since string (e.g. "2026-07-27 06:12:21")
+      - a timezone-aware datetime (for file-based log filtering)
+    Falls back to ('4 hours ago', None) if unavailable.
+    """
     p = await asyncio.create_subprocess_exec(
         'systemctl', 'show', 'hysteria-server.service',
         '--property=ActiveEnterTimestamp',
@@ -136,39 +145,78 @@ async def _get_server_start_time() -> str:
     for line in out.decode().splitlines():
         if line.startswith('ActiveEnterTimestamp='):
             ts = line.split('=', 1)[1].strip()
-            # Format: "Sun 2026-07-27 05:00:00 UTC" — extract date+time for journalctl
             parts = ts.split()
             if len(parts) >= 3 and parts[1] != 'n/a':
-                return f'{parts[1]} {parts[2]}'
-    return '4 hours ago'  # fallback if service not started yet
+                since_str = f'{parts[1]} {parts[2]}'
+                try:
+                    dt = datetime.strptime(since_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+                    return since_str, dt
+                except Exception:
+                    return since_str, None
+    return '4 hours ago', None
 
 
-async def _init_counts():
+async def _detect_log_source() -> str:
     """
-    Replay hysteria-server journal since its last start time to reconstruct
-    current connection state.
-
-    Using the server's actual start time (not a fixed window) is critical:
-    hysteria-server terminates all connections on restart without writing
-    'client disconnected' events, so replaying a fixed window accumulates
-    stale connect events that never have matching disconnects.
+    Check if hysteria-server redirects stdout to a file via a drop-in override.
+    Returns the file path if found, else '' (use systemd journal).
     """
-    since = await _get_server_start_time()
-    logger.info(f'Replaying hysteria-server journal since: {since}')
-
     p = await asyncio.create_subprocess_exec(
-        'journalctl', '-u', 'hysteria-server.service',
-        '--since', since, '--no-pager', '-o', 'cat',
+        'systemctl', 'show', 'hysteria-server.service',
+        '--property=StandardOutput',
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
     )
     out, _ = await p.communicate()
     for line in out.decode().splitlines():
-        _process_history_line(line.strip())
+        if line.startswith('StandardOutput='):
+            val = line.split('=', 1)[1].strip()
+            if ':' in val:
+                prefix, path = val.split(':', 1)
+                if prefix in ('append', 'file') and os.path.exists(path):
+                    return path
+    return ''
+
+
+async def _init_counts():
+    """
+    Replay hysteria-server logs since its last start time to reconstruct
+    current connection state. Supports both file-based and journal logging.
+    """
+    since_str, since_dt = await _get_server_start_time()
+    logger.info(f'Replaying hysteria-server logs since: {since_str}')
+
+    if _log_file:
+        try:
+            with open(_log_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if since_dt:
+                        m = _TS_RE.match(line)
+                        if not m:
+                            continue
+                        try:
+                            line_dt = datetime.fromisoformat(m.group(1) + '+00:00')
+                            if line_dt < since_dt:
+                                continue
+                        except Exception:
+                            continue
+                    _process_history_line(line)
+        except Exception as e:
+            logger.warning(f'Could not read log file {_log_file}: {e}')
+    else:
+        p = await asyncio.create_subprocess_exec(
+            'journalctl', '-u', 'hysteria-server.service',
+            '--since', since_str, '--no-pager', '-o', 'cat',
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+        )
+        out, _ = await p.communicate()
+        for line in out.decode().splitlines():
+            _process_history_line(line.strip())
 
     if _counts:
-        logger.info(f'Restored connection state from journal: {dict(_counts)}')
+        logger.info(f'Restored connection state: {dict(_counts)}')
     else:
-        logger.info('No active connections found in journal history.')
+        logger.info('No active connections found in history.')
 
 
 def _ensure_auth_proxy_config() -> bool:
@@ -280,24 +328,36 @@ async def _auth_handler(request: web.Request) -> web.Response:
 
 
 async def _monitor_logs():
-    """Follow live journal; only disconnect events are handled (connect is counted in auth handler)."""
-    proc = await asyncio.create_subprocess_exec(
-        'journalctl', '-u', 'hysteria-server.service',
-        '-f', '-n', '0', '--no-pager', '-o', 'cat',
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
+    """Follow live hysteria-server logs; only disconnect events are handled."""
+    if _log_file:
+        proc = await asyncio.create_subprocess_exec(
+            'tail', '-F', '-n', '0', _log_file,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+    else:
+        proc = await asyncio.create_subprocess_exec(
+            'journalctl', '-u', 'hysteria-server.service',
+            '-f', '-n', '0', '--no-pager', '-o', 'cat',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
     async for raw in proc.stdout:
         _process_disconnect(raw.decode().strip())
 
 
 async def _run():
-    global _max_conn
+    global _max_conn, _log_file
     _max_conn = _get_max_connections()
+    _log_file = await _detect_log_source()
     logger.info(
         f'Connection limiter started. MAX_CONNECTIONS={_max_conn}, '
         f'proxy on 127.0.0.1:{PROXY_PORT}'
     )
+    if _log_file:
+        logger.info(f'Log source: file ({_log_file})')
+    else:
+        logger.info('Log source: systemd journal')
 
     # Ensure hysteria-server uses our proxy. If config.json was reset by
     # upgrade.sh (which always writes port 28262), fix it and restart the server.
