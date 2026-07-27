@@ -20,8 +20,8 @@ get_system_info() {
 }
 
 version_greater_equal() {
-    IFS='.' read -r -a local_version_parts <<< "$1"
-    IFS='.' read -r -a latest_version_parts <<< "$2"
+    IFS='.' read -r -a local_version_parts <<< "${1#v}"
+    IFS='.' read -r -a latest_version_parts <<< "${2#v}"
 
     for ((i=0; i<${#local_version_parts[@]}; i++)); do
         if [[ -z ${latest_version_parts[i]} ]]; then
