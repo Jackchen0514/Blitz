@@ -1,3 +1,20 @@
+# v1.0.32
+
+## Fixes
+
+- **Version check: fix bash arithmetic error and wrong latest version URL**
+
+  Two bugs in the version display shown at menu startup:
+
+  - `version_greater_equal()` split `v1.0.31` into `["v1", "0", "31"]` and
+    then tried `10#v1` in bash arithmetic, which fails with "value too great
+    for base". Fixed by stripping the leading `v` before splitting on `.`.
+
+  - `LATESTVERSION` and `LASTESTCHANGE` in `path.sh` and `paths.py` pointed
+    to `ReturnFI/Blitz` (the upstream fork) instead of `Jackchen0514/Blitz`,
+    causing the menu to show an unrelated project's version as "Latest Version".
+    Both files now point to the correct repository.
+
 # v1.0.31
 
 ## Fixes
