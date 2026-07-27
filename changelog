@@ -1,3 +1,19 @@
+# v1.0.35
+
+## Fixes
+
+- **Connection limiter: fix log file detection always falling back to journal**
+
+  `_detect_log_source()` queried `systemctl show --property=StandardOutput`
+  to find the log file path, but systemd strips the path from the value —
+  returning only the mode (`append`) instead of the full
+  `append:/var/log/hysteria-server.log`. As a result, log monitoring always
+  fell back to `journalctl`, which received nothing (logs go to the file),
+  so disconnect events were never captured.
+
+  Fixed by parsing the unit drop-in files and main service file directly to
+  find `StandardOutput=append:/path` or `StandardOutput=file:/path` lines.
+
 # v1.0.34
 
 ## Features / Fixes
