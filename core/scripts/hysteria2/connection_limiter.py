@@ -156,24 +156,33 @@ async def _get_server_start_time() -> tuple[str, datetime | None]:
     return '4 hours ago', None
 
 
-async def _detect_log_source() -> str:
+def _detect_log_source() -> str:
     """
     Check if hysteria-server redirects stdout to a file via a drop-in override.
-    Returns the file path if found, else '' (use systemd journal).
+    Parses unit files directly — systemctl show strips the path from StandardOutput,
+    returning only the mode (e.g. 'append' instead of 'append:/var/log/...').
+    Returns the log file path if found, else '' (use systemd journal).
     """
-    p = await asyncio.create_subprocess_exec(
-        'systemctl', 'show', 'hysteria-server.service',
-        '--property=StandardOutput',
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
-    )
-    out, _ = await p.communicate()
-    for line in out.decode().splitlines():
-        if line.startswith('StandardOutput='):
-            val = line.split('=', 1)[1].strip()
-            if ':' in val:
-                prefix, path = val.split(':', 1)
-                if prefix in ('append', 'file') and os.path.exists(path):
-                    return path
+    dropin_dir = '/etc/systemd/system/hysteria-server.service.d'
+    candidates = []
+    if os.path.isdir(dropin_dir):
+        for fname in sorted(os.listdir(dropin_dir)):
+            if fname.endswith('.conf'):
+                candidates.append(os.path.join(dropin_dir, fname))
+    candidates.append('/etc/systemd/system/hysteria-server.service')
+
+    for unit_file in candidates:
+        try:
+            with open(unit_file) as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('StandardOutput=') and ':' in line:
+                        val = line.split('=', 1)[1].strip()
+                        prefix, log_path = val.split(':', 1)
+                        if prefix in ('append', 'file') and os.path.exists(log_path):
+                            return log_path
+        except Exception:
+            pass
     return ''
 
 
@@ -349,7 +358,7 @@ async def _monitor_logs():
 async def _run():
     global _max_conn, _log_file
     _max_conn = _get_max_connections()
-    _log_file = await _detect_log_source()
+    _log_file = _detect_log_source()
     logger.info(
         f'Connection limiter started. MAX_CONNECTIONS={_max_conn}, '
         f'proxy on 127.0.0.1:{PROXY_PORT}'
