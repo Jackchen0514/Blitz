@@ -1,3 +1,15 @@
+# v1.0.36
+
+## Fixes
+
+- **Connection limiter: show real connection count in disconnect log**
+
+  The `disconnected — active: N` log line was always showing `0` because it
+  read from the internal fallback counter, which is never incremented now that
+  the auth handler uses the hysteria2 traffic API. The disconnect handler now
+  queries the live traffic API and logs the actual remaining connection count,
+  consistent with what `auth OK — N connections after this` displays.
+
 # v1.0.35
 
 ## Fixes
