@@ -197,6 +197,38 @@ def _ensure_auth_proxy_config() -> bool:
         return False
 
 
+async def _get_live_connection_count(username: str) -> int:
+    """
+    Query the hysteria2 traffic API for the real number of live QUIC connections.
+
+    This is the authoritative source: it reflects actual server-side state and
+    automatically corrects for network switches (WiFi↔cellular) where the old
+    QUIC connection hasn't timed out yet but the client has already reconnected.
+
+    Returns -1 if the API is unreachable (caller falls back to internal counter).
+    """
+    secret = _get_secret()
+    if not secret:
+        return -1
+    loop = asyncio.get_event_loop()
+    try:
+        client = Hysteria2Client(base_url=TRAFFIC_API_URL, secret=secret)
+        online = await loop.run_in_executor(None, client.get_online_clients)
+        user_status = online.get(username)
+        if not user_status or not getattr(user_status, 'is_online', False):
+            return 0
+        connections = getattr(user_status, 'connections', None)
+        if connections is None:
+            return 1
+        try:
+            return len(connections)
+        except TypeError:
+            return int(connections) if isinstance(connections, int) else 1
+    except Exception as e:
+        logger.warning(f'Traffic API unavailable for {username}: {e}')
+        return -1
+
+
 async def _auth_handler(request: web.Request) -> web.Response:
     try:
         data = await request.json()
@@ -221,18 +253,29 @@ async def _auth_handler(request: web.Request) -> web.Response:
     if not username:
         return web.json_response(result)
 
-    with _lock:
-        count = _counts[username]
-        if count >= _max_conn and not _is_unlimited(username):
-            logger.warning(
-                f'{username} rejected — {count}/{_max_conn} connections already active'
-            )
-            return web.json_response({'ok': False, 'msg': 'connection limit exceeded'})
-        # Increment here, inside the lock, before returning OK.
-        # This prevents simultaneous reconnects from both seeing count=0.
-        _counts[username] += 1
+    if _is_unlimited(username):
+        return web.json_response(result)
 
-    logger.info(f'{username} auth OK — active connections: {count + 1}')
+    # Primary: use hysteria2 traffic API for the real live connection count.
+    # This handles network switches correctly — the API reflects actual QUIC
+    # state and doesn't accumulate stale counts like a journal-based counter.
+    live_count = await _get_live_connection_count(username)
+
+    if live_count >= 0:
+        if live_count >= _max_conn:
+            logger.warning(f'{username} rejected — {live_count}/{_max_conn} connections already active')
+            return web.json_response({'ok': False, 'msg': 'connection limit exceeded'})
+        logger.info(f'{username} auth OK — {live_count + 1} connections after this')
+    else:
+        # Fallback: traffic API unavailable, use internal counter.
+        with _lock:
+            count = _counts[username]
+            if count >= _max_conn:
+                logger.warning(f'{username} rejected — {count}/{_max_conn} connections already active (fallback counter)')
+                return web.json_response({'ok': False, 'msg': 'connection limit exceeded'})
+            _counts[username] += 1
+        logger.info(f'{username} auth OK — active connections: {_counts[username]} (fallback counter)')
+
     return web.json_response(result)
 
 
