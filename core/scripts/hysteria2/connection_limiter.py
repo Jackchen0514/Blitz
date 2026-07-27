@@ -125,15 +125,40 @@ def _process_history_line(line: str):
                 del _counts[username]
 
 
+async def _get_server_start_time() -> str:
+    """Return the last start timestamp of hysteria-server as a journalctl --since string."""
+    p = await asyncio.create_subprocess_exec(
+        'systemctl', 'show', 'hysteria-server.service',
+        '--property=ActiveEnterTimestamp',
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+    )
+    out, _ = await p.communicate()
+    for line in out.decode().splitlines():
+        if line.startswith('ActiveEnterTimestamp='):
+            ts = line.split('=', 1)[1].strip()
+            # Format: "Sun 2026-07-27 05:00:00 UTC" — extract date+time for journalctl
+            parts = ts.split()
+            if len(parts) >= 3 and parts[1] != 'n/a':
+                return f'{parts[1]} {parts[2]}'
+    return '4 hours ago'  # fallback if service not started yet
+
+
 async def _init_counts():
     """
-    Replay the last 4 hours of hysteria-server journal to reconstruct current
-    connection state. A 4-hour window is sufficient because QUIC idle timeout
-    is 20 s; even active sessions rarely exceed a few hours.
+    Replay hysteria-server journal since its last start time to reconstruct
+    current connection state.
+
+    Using the server's actual start time (not a fixed window) is critical:
+    hysteria-server terminates all connections on restart without writing
+    'client disconnected' events, so replaying a fixed window accumulates
+    stale connect events that never have matching disconnects.
     """
+    since = await _get_server_start_time()
+    logger.info(f'Replaying hysteria-server journal since: {since}')
+
     p = await asyncio.create_subprocess_exec(
         'journalctl', '-u', 'hysteria-server.service',
-        '--since', '4 hours ago', '--no-pager', '-o', 'cat',
+        '--since', since, '--no-pager', '-o', 'cat',
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
     )
     out, _ = await p.communicate()
