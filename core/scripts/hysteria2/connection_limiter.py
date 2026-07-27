@@ -98,8 +98,8 @@ _TS_RE = re.compile(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})')
 _log_file: str = ''  # set during startup; empty = use systemd journal
 
 
-def _process_disconnect(line: str):
-    """Only handle disconnect events — connect counts are managed by the auth handler."""
+async def _process_disconnect(line: str):
+    """Handle disconnect events — decrement fallback counter and log real API count."""
     m = _LOG_RE.search(line)
     if not m or m.group('event') != 'client disconnected':
         return
@@ -109,7 +109,12 @@ def _process_disconnect(line: str):
             _counts[username] -= 1
         if _counts[username] == 0:
             del _counts[username]
-        logger.info(f'{username} disconnected — active: {_counts.get(username, 0)}')
+
+    live_count = await _get_live_connection_count(username)
+    if live_count >= 0:
+        logger.info(f'{username} disconnected — active: {live_count}')
+    else:
+        logger.info(f'{username} disconnected — active: {_counts.get(username, 0)} (fallback)')
 
 
 def _process_history_line(line: str):
@@ -352,7 +357,7 @@ async def _monitor_logs():
             stderr=asyncio.subprocess.DEVNULL,
         )
     async for raw in proc.stdout:
-        _process_disconnect(raw.decode().strip())
+        await _process_disconnect(raw.decode().strip())
 
 
 async def _run():
