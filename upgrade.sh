@@ -401,6 +401,31 @@ if [[ -f "$HYSTERIA_INSTALL_DIR/.configs.env" ]] && ! grep -q "^MAX_CONNECTIONS=
     info "Added default MAX_CONNECTIONS=2 to .configs.env"
 fi
 
+# ========== Hysteria Server Log File + Rotation ==========
+info "Ensuring hysteria-server log file and logrotate config..."
+mkdir -p /etc/systemd/system/hysteria-server.service.d
+if [[ ! -f /etc/systemd/system/hysteria-server.service.d/log.conf ]]; then
+    cat > /etc/systemd/system/hysteria-server.service.d/log.conf << 'EOF'
+[Service]
+StandardOutput=append:/var/log/hysteria-server.log
+StandardError=append:/var/log/hysteria-server.log
+EOF
+    success "Created hysteria-server log.conf drop-in."
+fi
+cat > /etc/logrotate.d/hysteria-server << 'EOF'
+/var/log/hysteria-server.log {
+    daily
+    rotate 7
+    size 50M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+success "logrotate config for hysteria-server.log updated."
+
 # ========== Caddy Services Migration ==========
 migrate_caddy_services
 

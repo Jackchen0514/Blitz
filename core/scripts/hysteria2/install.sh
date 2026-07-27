@@ -126,6 +126,26 @@ install_hysteria() {
     sed -i 's|(config.yaml)|(Blitz Panel)|' /etc/systemd/system/hysteria-server.service
     sed -i "s|/etc/hysteria/config.yaml|$CONFIG_FILE|" /etc/systemd/system/hysteria-server.service
     rm -f /etc/hysteria/config.yaml
+
+    echo "Configuring hysteria-server log file with rotation..."
+    mkdir -p /etc/systemd/system/hysteria-server.service.d
+    cat > /etc/systemd/system/hysteria-server.service.d/log.conf << 'EOF'
+[Service]
+StandardOutput=append:/var/log/hysteria-server.log
+StandardError=append:/var/log/hysteria-server.log
+EOF
+    cat > /etc/logrotate.d/hysteria-server << 'EOF'
+/var/log/hysteria-server.log {
+    daily
+    rotate 7
+    size 50M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
     sleep 1
 
     echo "Starting and enabling Hysteria service..."
