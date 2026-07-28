@@ -1,3 +1,28 @@
+# v1.0.39
+
+## Features
+
+- **File-based masquerade: decoy website served for non-VPN HTTP probes**
+
+  Added `web/index.html` (a static personal-blog-style page) and configured
+  `config.json`'s `masquerade` block to serve it via `type: file`, pointing
+  at `/etc/hysteria/web`. When something probes the server over plain HTTP
+  instead of speaking the Hysteria2 protocol, it now gets served this page
+  instead of a connection error — a standard measure to make the server look
+  like an ordinary website.
+
+## Fixes
+
+- **ACL: reject China geosite/geoip instead of Iran**
+
+  `config.json`'s ACL inline rules rejected `geosite:ir` / `geoip:ir`.
+  Changed to `geosite:cn` / `geoip:cn`.
+
+  Note: both of these `config.json` changes only affect fresh installs.
+  `upgrade.sh` backs up and restores each server's existing `config.json`
+  as-is, so already-deployed servers need the change applied manually if
+  wanted.
+
 # v1.0.38
 
 ## Fixes

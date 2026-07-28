@@ -4,6 +4,12 @@
     "cert": "/etc/hysteria/ssl/domain/fullchain.pem",
     "key": "/etc/hysteria/ssl/domain/key.pem"
   },
+  "masquerade": {
+    "type": "file",
+    "file": {
+      "dir": "/etc/hysteria/web"
+    }
+  },
   "auth": {
     "type": "http",
     "http": {
@@ -62,8 +68,8 @@
   ],
   "acl": {
     "inline": [
-      "reject(geosite:ir)",
-      "reject(geoip:ir)",
+      "reject(geosite:cn)",
+      "reject(geoip:cn)",
       "reject(10.0.0.0/8)",
       "reject(172.16.0.0/12)",
       "reject(192.168.0.0/16)",
