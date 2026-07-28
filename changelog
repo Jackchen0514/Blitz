@@ -1,3 +1,27 @@
+# v1.0.37
+
+## Fixes
+
+- **Upgrade: actually upgrade the Hysteria2 core binary, and preserve Blitz Panel's systemd config**
+
+  `upgrade.sh` only ever replaced the Blitz Panel scripts/config — it never
+  updated the `hysteria` binary itself, so the core stayed pinned at whatever
+  version was installed originally.
+
+  Added a step that re-runs the official installer
+  (`bash <(curl -fsSL https://get.hy2.sh/)`) to pull the latest Hysteria2
+  release, the same way `install.sh` does on a fresh install. User data
+  (MongoDB, `users.json`, certs) is untouched by this — it only replaces the
+  binary.
+
+  However, `get.hy2.sh` also resets `/etc/systemd/system/hysteria-server.service`
+  to its default unit, which points `ExecStart` at `/etc/hysteria/config.yaml`
+  instead of Blitz Panel's `config.json`. Left alone, this would make the
+  server start with the wrong config after every upgrade. Fixed by re-applying
+  the same `sed` patch `install.sh` uses to re-pin the unit file to
+  `config.json` immediately after the binary upgrade, before services are
+  restarted.
+
 # v1.0.36
 
 ## Fixes

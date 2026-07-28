@@ -450,6 +450,22 @@ else
     warn "Failed to source scheduler.sh, continuing without service setup..."
 fi
 
+# ========== Upgrade Hysteria2 Core Binary ==========
+info "Upgrading Hysteria2 core binary..."
+if bash <(curl -fsSL https://get.hy2.sh/) >/dev/null 2>&1; then
+    success "Hysteria2 core binary upgraded to latest version."
+    # get.hy2.sh resets hysteria-server.service to its default unit, which points
+    # at config.yaml — re-pin it to Blitz Panel's config.json, same as install.sh.
+    if [[ -f /etc/systemd/system/hysteria-server.service ]]; then
+        sed -i 's|(config.yaml)|(Blitz Panel)|' /etc/systemd/system/hysteria-server.service
+        sed -i "s|/etc/hysteria/config.yaml|$HYSTERIA_INSTALL_DIR/config.json|" /etc/systemd/system/hysteria-server.service
+        rm -f "$HYSTERIA_INSTALL_DIR/config.yaml"
+        success "Re-pinned hysteria-server.service to config.json."
+    fi
+else
+    warn "Failed to upgrade Hysteria2 core binary. Continuing with existing version."
+fi
+
 # ========== Restart Services ==========
 info "Reloading systemd daemon..."
 systemctl daemon-reload
