@@ -1,3 +1,25 @@
+# v1.0.38
+
+## Fixes
+
+- **Upgrade: don't let a single transient systemd/D-Bus hiccup abort the whole upgrade**
+
+  `upgrade.sh` runs under `set -euo pipefail` with a global ERR trap, so any
+  single `systemctl restart` returning non-zero (e.g. a transient
+  `Failed to wait for response: Connection reset by peer` from D-Bus) killed
+  the entire script immediately. Services later in the restart list (e.g.
+  `hysteria-normal-sub`, `hysteria-webpanel`, `hysteria-telegram-bot`,
+  `hysteria-ip-limit`) were never restarted, even though their files had
+  already been replaced by the new release — leaving the box in a
+  partially-upgraded state that required manual cleanup.
+
+  `systemctl daemon-reload` and every `systemctl restart` call in the restart
+  loop (including the dedicated `caddy.service` start step) now retry once
+  after a 3-second delay instead of aborting the script on the first
+  failure. A service that still fails after the retry is logged as a warning
+  (with its last 5 log lines) and the upgrade continues to the remaining
+  services.
+
 # v1.0.37
 
 ## Fixes

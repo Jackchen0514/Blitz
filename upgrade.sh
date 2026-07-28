@@ -468,7 +468,11 @@ fi
 
 # ========== Restart Services ==========
 info "Reloading systemd daemon..."
-systemctl daemon-reload
+if ! systemctl daemon-reload; then
+    warn "daemon-reload failed (possibly a transient D-Bus/systemd hiccup). Retrying in 3s..."
+    sleep 3
+    systemctl daemon-reload
+fi
 
 info "Restarting services that were active before the upgrade..."
 caddy_needed=false
@@ -484,7 +488,11 @@ else
         fi
         info "Attempting to restart $SERVICE..."
         systemctl enable "$SERVICE" &>/dev/null || warn "Could not enable $SERVICE. It might not exist."
-        systemctl restart "$SERVICE"
+        if ! systemctl restart "$SERVICE"; then
+            warn "Restart of $SERVICE failed (possibly a transient D-Bus/systemd hiccup). Retrying in 3s..."
+            sleep 3
+            systemctl restart "$SERVICE" || warn "$SERVICE still failed to restart after retry."
+        fi
         sleep 2
         if systemctl is-active --quiet "$SERVICE"; then
             success "$SERVICE restarted successfully and is active."
@@ -501,7 +509,11 @@ if [[ "$caddy_needed" == true ]] || [[ " ${ACTIVE_SERVICES_BEFORE_UPGRADE[*]} " 
     if compgen -G "/etc/caddy/conf.d/*.conf" > /dev/null 2>&1; then
         info "Starting caddy.service (unified Caddy)..."
         systemctl enable caddy.service &>/dev/null || true
-        systemctl restart caddy.service
+        if ! systemctl restart caddy.service; then
+            warn "Restart of caddy.service failed (possibly a transient D-Bus/systemd hiccup). Retrying in 3s..."
+            sleep 3
+            systemctl restart caddy.service || warn "caddy.service still failed to restart after retry."
+        fi
         sleep 2
         if systemctl is-active --quiet caddy.service; then
             success "caddy.service started successfully."
