@@ -1,3 +1,20 @@
+# v1.0.40
+
+## Features
+
+- **Settings: configurable global traffic coefficient (流量系数)**
+
+  Added a "Traffic Coefficient" tab in Settings for a global multiplier
+  applied to counted upload/download traffic — e.g. `1.9` counts usage as
+  1.9x the real bytes transferred, `0.9` counts it as 0.9x. Stored in
+  `.configs.env` as `TRAFFIC_COEFFICIENT`, defaults to `1.9` when unset.
+
+  `TrafficManager` (`core/traffic.py`) applies the coefficient to each
+  polling interval's upload/download delta before adding it to the user's
+  cumulative total, so traffic-limit expiry checks automatically respect
+  it without any extra changes. New API:
+  `GET/POST /api/v1/hysteria2/traffic-coefficient/config`.
+
 # v1.0.39
 
 ## Features
