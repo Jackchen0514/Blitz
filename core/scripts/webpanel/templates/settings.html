@@ -41,6 +41,8 @@
     data-stop-ip-limit-url="{{ url_for('stop_ip_limit_api') }}"
     data-clean-ip-limit-url="{{ url_for('clean_ip_limit_api') }}"
     data-config-ip-limit-url="{{ url_for('config_ip_limit_api') }}"
+    data-get-traffic-coefficient-url="{{ url_for('get_traffic_coefficient_config_api') }}"
+    data-config-traffic-coefficient-url="{{ url_for('config_traffic_coefficient_api') }}"
     data-status-warp-url="{{ url_for('status_warp') }}"
     data-install-warp-url="{{ url_for('install_warp') }}"
     data-uninstall-warp-url="{{ url_for('uninstall_warp') }}"
@@ -82,6 +84,11 @@
                                 <a class='nav-link' id='ip-limit-tab' data-toggle='pill' href='#ip-limit' role='tab'
                                     aria-controls='ip-limit' aria-selected='false'><i class="fas fa-user-slash"></i>
                                     IP Limit</a>
+                            </li>
+                            <li class='nav-item'>
+                                <a class='nav-link' id='traffic-coefficient-tab' data-toggle='pill' href='#traffic-coefficient' role='tab'
+                                    aria-controls='traffic-coefficient' aria-selected='false'><i class="fas fa-percentage"></i>
+                                    Traffic Coefficient</a>
                             </li>
                              <li class='nav-item'>
                                 <a class='nav-link' id='decoy-tab' data-toggle='pill' href='#decoy' role='tab'
@@ -436,6 +443,22 @@
                                         </form>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Traffic Coefficient Tab -->
+                            <div class='tab-pane fade' id='traffic-coefficient' role='tabpanel' aria-labelledby='traffic-coefficient-tab'>
+                                <p>Global multiplier applied to all counted upload/download traffic (e.g. <code>1.9</code> counts 1.9x the real usage, <code>0.9</code> counts 0.9x). Default is <code>1.9</code>.</p>
+                                <form id="traffic_coefficient_form">
+                                    <div class='form-group'>
+                                        <label for='traffic_coefficient'>Traffic Coefficient:</label>
+                                        <input type='text' class='form-control' id='traffic_coefficient'
+                                            placeholder='e.g. 1.9' value="">
+                                        <div class="invalid-feedback">
+                                            Please enter a valid positive number (e.g. 0.9, 1, 1.9).
+                                        </div>
+                                    </div>
+                                    <button id="traffic_coefficient_save" type='button' class='btn btn-primary'>Save Configuration</button>
+                                </form>
                             </div>
                              <!-- Decoy Site Tab -->
                             <div class='tab-pane fade' id='decoy' role='tabpanel' aria-labelledby='decoy-tab'>

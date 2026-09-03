@@ -29,6 +29,8 @@ $(document).ready(function () {
         stopIpLimit: contentSection.dataset.stopIpLimitUrl,
         cleanIpLimit: contentSection.dataset.cleanIpLimitUrl,
         configIpLimit: contentSection.dataset.configIpLimitUrl,
+        getTrafficCoefficient: contentSection.dataset.getTrafficCoefficientUrl,
+        configTrafficCoefficient: contentSection.dataset.configTrafficCoefficientUrl,
         statusWarp: contentSection.dataset.statusWarpUrl,
         installWarp: contentSection.dataset.installWarpUrl,
         uninstallWarp: contentSection.dataset.uninstallWarpUrl,
@@ -39,6 +41,7 @@ $(document).ready(function () {
     fetchDecoyStatus();
     fetchNodes();
     fetchExtraConfigs();
+    fetchTrafficCoefficient();
 
     function escapeHtml(text) {
         var map = {
@@ -108,6 +111,11 @@ $(document).ready(function () {
     function isValidPositiveNumber(value) {
         if (!value) return false;
         return /^[0-9]+$/.test(value) && parseInt(value) > 0;
+    }
+
+    function isValidPositiveFloat(value) {
+        if (!value) return false;
+        return /^[0-9]+(\.[0-9]+)?$/.test(value) && parseFloat(value) > 0;
     }
 
     function confirmAction(actionName, callback) {
@@ -208,6 +216,8 @@ $(document).ready(function () {
                 } else {
                    fieldValid = isValidPositiveNumber(input.val());
                 }
+            } else if (id === 'traffic_coefficient') {
+                fieldValid = isValidPositiveFloat(input.val());
             } else if (id === 'decoy_path') {
                 fieldValid = isValidPath(input.val());
             } else if (id === 'node_port') {
@@ -584,6 +594,21 @@ $(document).ready(function () {
         });
     }
 
+    function fetchTrafficCoefficient() {
+        $.ajax({
+            url: API_URLS.getTrafficCoefficient,
+            type: "GET",
+            success: function (data) {
+                $("#traffic_coefficient").val(data.coefficient != null ? data.coefficient : 1.9);
+                $("#traffic_coefficient").removeClass('is-invalid');
+            },
+            error: function (xhr, status, error) {
+                console.error("Failed to fetch traffic coefficient:", error, xhr.responseText);
+                $("#traffic_coefficient").val(1.9);
+            }
+        });
+    }
+
     function editNormalSubPath() {
         if (!validateForm('normal_sub_config_form')) return;
         const subpath = $("#normal_subpath_input").val();
@@ -910,6 +935,22 @@ $(document).ready(function () {
         });
     }
 
+    function saveTrafficCoefficient() {
+        if (!validateForm('traffic_coefficient_form')) return;
+        const coefficient = $("#traffic_coefficient").val();
+        confirmAction("save the traffic coefficient", function () {
+            sendRequest(
+                API_URLS.configTrafficCoefficient,
+                "POST",
+                { coefficient: parseFloat(coefficient) },
+                "Traffic coefficient saved successfully!",
+                "#traffic_coefficient_save",
+                false,
+                fetchTrafficCoefficient
+            );
+        });
+    }
+
     function fetchWarpFullStatusAndConfig() {
         $.ajax({
             url: API_URLS.statusWarp,
@@ -1006,6 +1047,7 @@ $(document).ready(function () {
     $("#ip_limit_stop").on("click", stopIPLimit);
     $("#ip_limit_clean").on("click", cleanIPLimit);
     $("#ip_limit_change_config").on("click", configIPLimit);
+    $("#traffic_coefficient_save").on("click", saveTrafficCoefficient);
     $("#decoy_setup").on("click", setupDecoy);
     $("#decoy_stop").on("click", stopDecoy);
     $("#add_node_btn").on("click", addNode);
@@ -1094,6 +1136,14 @@ $(document).ready(function () {
             $(this).addClass('is-invalid');
         } else {
              $(this).addClass('is-invalid');
+        }
+    });
+
+    $('#traffic_coefficient').on('input', function () {
+        if (isValidPositiveFloat($(this).val())) {
+            $(this).removeClass('is-invalid');
+        } else {
+            $(this).addClass('is-invalid');
         }
     });
 

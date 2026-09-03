@@ -4,7 +4,7 @@ from enum import Enum
 from datetime import datetime
 import json
 from typing import Any, Optional
-from dotenv import dotenv_values
+from dotenv import dotenv_values, set_key
 import re
 import secrets
 import string
@@ -919,6 +919,40 @@ def get_ip_limiter_config() -> dict[str, int | None]:
     except Exception as e:
         print(f"Error reading IP Limiter config from .configs.env: {e}")
         return {"block_duration": None, "max_ips": None}
+
+DEFAULT_TRAFFIC_COEFFICIENT = 1.9
+
+def get_traffic_coefficient() -> float:
+    '''Retrieves the current global traffic coefficient from .configs.env (default 1.9).'''
+    try:
+        if not os.path.exists(CONFIG_ENV_FILE):
+            return DEFAULT_TRAFFIC_COEFFICIENT
+
+        env_vars = dotenv_values(CONFIG_ENV_FILE)
+        coefficient_str = env_vars.get('TRAFFIC_COEFFICIENT')
+
+        if coefficient_str:
+            try:
+                coefficient = float(coefficient_str)
+                return coefficient if coefficient > 0 else DEFAULT_TRAFFIC_COEFFICIENT
+            except (ValueError, TypeError):
+                return DEFAULT_TRAFFIC_COEFFICIENT
+
+        return DEFAULT_TRAFFIC_COEFFICIENT
+    except Exception as e:
+        print(f"Error reading traffic coefficient from .configs.env: {e}")
+        return DEFAULT_TRAFFIC_COEFFICIENT
+
+def set_traffic_coefficient(coefficient: float):
+    '''Sets the global traffic coefficient used to scale counted upload/download traffic.'''
+    if coefficient is None or coefficient <= 0:
+        raise InvalidInputError("Traffic coefficient must be greater than 0.")
+
+    os.makedirs(os.path.dirname(CONFIG_ENV_FILE), exist_ok=True)
+    if not os.path.exists(CONFIG_ENV_FILE):
+        open(CONFIG_ENV_FILE, 'a').close()
+
+    set_key(CONFIG_ENV_FILE, 'TRAFFIC_COEFFICIENT', str(coefficient))
 
 
 def start_connection_limiter():

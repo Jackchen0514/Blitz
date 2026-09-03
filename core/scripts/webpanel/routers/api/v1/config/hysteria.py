@@ -1,6 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
 from ..schema.config.hysteria import ConfigFile, GetPortResponse, GetSniResponse, GetObfsResponse, GetMasqueradeStatusResponse
-from ..schema.response import DetailResponse, IPLimitConfig, SetupDecoyRequest, DecoyStatusResponse, IPLimitConfigResponse, ConnLimitConfig, ConnLimitConfigResponse
+from ..schema.response import DetailResponse, IPLimitConfig, SetupDecoyRequest, DecoyStatusResponse, IPLimitConfigResponse, ConnLimitConfig, ConnLimitConfigResponse, TrafficCoefficientConfig, TrafficCoefficientConfigResponse
 from fastapi.responses import FileResponse
 import shutil
 import zipfile
@@ -382,6 +382,24 @@ async def get_ip_limit_config_api():
         return IPLimitConfigResponse(**config)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error retrieving IP Limiter configuration: {str(e)}')
+
+@router.post('/traffic-coefficient/config', response_model=DetailResponse, summary='Configure Traffic Coefficient')
+async def config_traffic_coefficient_api(config: TrafficCoefficientConfig):
+    """Configures the global traffic coefficient applied to counted upload/download traffic."""
+    try:
+        cli_api.set_traffic_coefficient(config.coefficient)
+        return DetailResponse(detail=f'Traffic coefficient updated to {config.coefficient}.')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f'Error configuring traffic coefficient: {str(e)}')
+
+@router.get('/traffic-coefficient/config', response_model=TrafficCoefficientConfigResponse, summary='Get Traffic Coefficient Configuration')
+async def get_traffic_coefficient_config_api():
+    """Retrieves the current global traffic coefficient."""
+    try:
+        coefficient = cli_api.get_traffic_coefficient()
+        return TrafficCoefficientConfigResponse(coefficient=coefficient)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error retrieving traffic coefficient: {str(e)}')
 
 @router.post('/conn-limit/start', response_model=DetailResponse, summary='Start Connection Limiter Service')
 async def start_conn_limit_api():

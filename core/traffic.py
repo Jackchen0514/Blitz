@@ -11,10 +11,14 @@ from typing import Dict, Any, Optional, List, Tuple
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(SCRIPT_DIR, 'scripts'))
 
+from dotenv import dotenv_values
+
 from hysteria2_api import Hysteria2Client
 from db.database import db
 
 CONFIG_FILE = '/etc/hysteria/config.json'
+CONFIG_ENV_FILE = '/etc/hysteria/.configs.env'
+DEFAULT_TRAFFIC_COEFFICIENT = 1.9
 API_BASE_URL = 'http://127.0.0.1:25413'
 LOCKFILE = "/tmp/hysteria_traffic.lock"
 
@@ -64,6 +68,7 @@ class TrafficManager:
             raise ValueError(f"Secret not found or failed to read {CONFIG_FILE}.")
         self.client = Hysteria2Client(base_url=api_base_url, secret=self.secret)
         self.today_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        self.coefficient = self._get_traffic_coefficient()
 
     @staticmethod
     def _get_secret() -> Optional[str]:
@@ -74,7 +79,22 @@ class TrafficManager:
         except (json.JSONDecodeError, FileNotFoundError):
             logging.error(f"Could not read or parse secret from {CONFIG_FILE}")
             return None
-            
+
+    @staticmethod
+    def _get_traffic_coefficient() -> float:
+        try:
+            if not os.path.exists(CONFIG_ENV_FILE):
+                return DEFAULT_TRAFFIC_COEFFICIENT
+            env_vars = dotenv_values(CONFIG_ENV_FILE)
+            coefficient_str = env_vars.get('TRAFFIC_COEFFICIENT')
+            if coefficient_str:
+                coefficient = float(coefficient_str)
+                return coefficient if coefficient > 0 else DEFAULT_TRAFFIC_COEFFICIENT
+            return DEFAULT_TRAFFIC_COEFFICIENT
+        except (ValueError, TypeError, OSError) as e:
+            logging.error(f"Error reading traffic coefficient from .configs.env: {e}")
+            return DEFAULT_TRAFFIC_COEFFICIENT
+
     def _get_online_connection_count(self, user_status_from_api: Any) -> int:
         if not hasattr(user_status_from_api, 'is_online') or not user_status_from_api.is_online:
             return 0
@@ -119,8 +139,10 @@ class TrafficManager:
             updates['online_count'] = online_count
 
         if username in live_traffic:
-            updates['upload_bytes'] = user_data.get('upload_bytes', 0) + live_traffic[username].upload_bytes
-            updates['download_bytes'] = user_data.get('download_bytes', 0) + live_traffic[username].download_bytes
+            upload_delta = int(live_traffic[username].upload_bytes * self.coefficient)
+            download_delta = int(live_traffic[username].download_bytes * self.coefficient)
+            updates['upload_bytes'] = user_data.get('upload_bytes', 0) + upload_delta
+            updates['download_bytes'] = user_data.get('download_bytes', 0) + download_delta
 
         is_activated = "account_creation_date" in user_data
         has_activity = is_online or (username in live_traffic and (live_traffic[username].upload_bytes > 0 or live_traffic[username].download_bytes > 0))
